@@ -8,6 +8,7 @@ import type { DocumentRecord } from '../types';
 export function useReservationDocuments(reservationId: string | undefined) {
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!reservationId) {
@@ -21,15 +22,24 @@ export function useReservationDocuments(reservationId: string | undefined) {
       orderBy('uploadedAt'),
     );
 
-    return onSnapshot(q, (snap) => {
-      setDocuments(
-        snap.docs.map((d) => ({ id: d.id, ...d.data() }) as DocumentRecord),
-      );
-      setLoading(false);
-    });
+    // Always pass an error callback. A listener that fails without one renders
+    // as an empty list, indistinguishable from "nothing uploaded yet".
+    return onSnapshot(
+      q,
+      (snap) => {
+        setDocuments(
+          snap.docs.map((d) => ({ id: d.id, ...d.data() }) as DocumentRecord),
+        );
+        setLoading(false);
+      },
+      (err) => {
+        setError(`${err.code}: ${err.message}`);
+        setLoading(false);
+      },
+    );
   }, [reservationId]);
 
-  return { documents, loading };
+  return { documents, loading, error };
 }
 
 /**

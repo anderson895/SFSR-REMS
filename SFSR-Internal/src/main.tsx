@@ -7,7 +7,11 @@ import './styles.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
+    {/* Opting in to the v7 behaviours now silences React Router's upgrade
+        warnings and means the app already behaves the way v7 will. */}
+    <BrowserRouter
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <AuthProvider>
         <App />
       </AuthProvider>

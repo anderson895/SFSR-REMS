@@ -26,7 +26,16 @@ export default defineConfig({
   server: { port: 5173 },
 
   optimizeDeps: {
-    // Pre-bundling these breaks their worker loading; let Vite serve them as-is.
-    exclude: ['tesseract.js', 'pdfjs-dist'],
+    /**
+     * pdfjs-dist ships ESM and loads its worker from a `?url` import, so it is
+     * served as-is.
+     *
+     * tesseract.js must NOT be listed here. It is CommonJS, and excluding it
+     * makes Vite serve the raw file to the browser, where native ESM cannot
+     * read named exports from CJS — every import fails with
+     * "does not provide an export named 'createWorker'". Letting Vite
+     * pre-bundle it converts CJS to ESM properly.
+     */
+    exclude: ['pdfjs-dist'],
   },
 });

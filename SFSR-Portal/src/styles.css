@@ -46,10 +46,14 @@ body {
 }
 
 .brand-logo {
-  width: 40px;
-  height: 40px;
-  object-fit: cover;
-  border-radius: 6px;
+  /* `contain` with an auto width, never `cover` on a square box: the logo is a
+     wide lockup (2048x1582) and cover crops the wordmark off both sides. */
+  height: 38px;
+  width: auto;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 4px;
+  padding: 2px 5px;
 }
 
 .brand-text {

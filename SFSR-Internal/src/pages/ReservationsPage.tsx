@@ -13,6 +13,7 @@ const ALL = 'all';
 export default function ReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [status, setStatus] = useState(ALL);
   const [search, setSearch] = useState('');
 
@@ -21,12 +22,20 @@ export default function ReservationsPage() {
       collection(db, COLLECTIONS.RESERVATIONS),
       orderBy('createdAt', 'desc'),
     );
-    return onSnapshot(q, (snap) => {
-      setReservations(
-        snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Reservation),
-      );
-      setLoading(false);
-    });
+    // Without an error callback a failed listener looks like an empty queue.
+    return onSnapshot(
+      q,
+      (snap) => {
+        setReservations(
+          snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Reservation),
+        );
+        setLoading(false);
+      },
+      (err) => {
+        setError(`${err.code}: ${err.message}`);
+        setLoading(false);
+      },
+    );
   }, []);
 
   const counts = useMemo(() => {
@@ -67,6 +76,10 @@ export default function ReservationsPage() {
             New walk-in reservation
           </Link>
         </div>
+
+        {error && (
+          <p className="field-error">Could not load reservations — {error}</p>
+        )}
 
         <div className="filters">
           <input

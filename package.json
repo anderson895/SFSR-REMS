@@ -17,6 +17,7 @@
     "seed": "tsx scripts/seedUnits.ts",
     "check:algorithms": "tsx scripts/checkAlgorithms.ts",
     "verify": "tsx --env-file=.env scripts/verify.ts",
+    "diagnose": "tsx --env-file=.env scripts/diagnose.ts",
     "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes --project sfsr-rems",
     "deploy:portal": "npm run build:portal && firebase deploy --only hosting --project sfsr-rems"
   },

@@ -43,6 +43,8 @@ export default function WalkInReservationPage() {
   const { user, profile } = useAuth();
 
   const [units, setUnits] = useState<Unit[]>([]);
+  const [unitsLoading, setUnitsLoading] = useState(true);
+  const [unitsError, setUnitsError] = useState('');
   const [unitId, setUnitId] = useState('');
   const [buyer, setBuyer] = useState(EMPTY_BUYER);
   const [remarks, setRemarks] = useState('');
@@ -55,8 +57,19 @@ export default function WalkInReservationPage() {
       where('status', '==', UnitStatus.AVAILABLE),
       orderBy('price'),
     );
-    return onSnapshot(q, (snap) =>
-      setUnits(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Unit)),
+    // The error callback is not optional. Without it a failed listener — a
+    // missing composite index, a rules rejection — renders as a silently empty
+    // dropdown that looks exactly like "no units exist".
+    return onSnapshot(
+      q,
+      (snap) => {
+        setUnits(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Unit));
+        setUnitsLoading(false);
+      },
+      (err) => {
+        setUnitsError(`${err.code}: ${err.message}`);
+        setUnitsLoading(false);
+      },
     );
   }, []);
 
@@ -114,23 +127,31 @@ export default function WalkInReservationPage() {
       <form onSubmit={handleSubmit} className="inline-form">
         {error && <p className="field-error">{error}</p>}
 
+        {unitsError && (
+          <p className="field-error">
+            Could not load units — {unitsError}
+          </p>
+        )}
+
         <label>
-          Unit
+          Unit ({unitsLoading ? 'loading…' : `${units.length} available`})
           <select value={unitId} onChange={(e) => setUnitId(e.target.value)} required>
-            <option value="">Select an available unit…</option>
+            <option value="">
+              {unitsLoading ? 'Loading units…' : 'Select an available unit…'}
+            </option>
             {units.map((unit) => (
               <option key={unit.id} value={unit.id}>
-                {unit.building} — Unit {unit.unitNo} ({unit.type},{' '}
-                ₱{unit.price.toLocaleString('en-PH')})
+                {unit.building} — Unit {unit.unitNo} ({unit.type}, ₱
+                {unit.price.toLocaleString('en-PH')})
               </option>
             ))}
           </select>
         </label>
 
-        {units.length === 0 && (
+        {!unitsLoading && !unitsError && units.length === 0 && (
           <p className="hint">
-            No units are currently available. Seed the inventory or free up a
-            unit first.
+            No units are currently available. Run <code>npm run migrate</code> to
+            seed the inventory, or free up a unit first.
           </p>
         )}
 

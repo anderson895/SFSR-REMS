@@ -7,7 +7,7 @@
  * quality of the uploaded scan, exactly as noted in the study's limitations.
  */
 
-import { createWorker, type Worker } from 'tesseract.js';
+import type { Worker } from 'tesseract.js';
 import type { OcrResult } from './types';
 
 export interface OcrProgress {
@@ -31,6 +31,16 @@ let workerPromise: Promise<Worker> | null = null;
  */
 async function getWorker(onProgress?: (p: OcrProgress) => void): Promise<Worker> {
   if (!workerPromise) {
+    // Imported dynamically, not at the top of the file, for two reasons.
+    //
+    // Tesseract.js and its ~10 MB English model are only needed once someone
+    // actually scans a document, so eager loading would slow every page.
+    //
+    // More importantly it contains the blast radius: a top-level import means
+    // any failure loading this library takes down the entire application at
+    // startup with a blank page, instead of failing just the OCR feature.
+    const { createWorker } = await import('tesseract.js');
+
     workerPromise = createWorker('eng', 1, {
       logger: (m: { status: string; progress: number }) => {
         onProgress?.({ status: m.status, progress: m.progress });

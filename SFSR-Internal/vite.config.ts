@@ -22,6 +22,8 @@ export default defineConfig({
   },
 
   optimizeDeps: {
-    exclude: ['tesseract.js', 'pdfjs-dist'],
+    // tesseract.js is deliberately NOT excluded — it is CommonJS and must be
+    // pre-bundled. See the note in SFSR-Portal/vite.config.ts.
+    exclude: ['pdfjs-dist'],
   },
 });
