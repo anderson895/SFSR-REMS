@@ -1,9 +1,14 @@
+import { UserCircleIcon } from '@heroicons/react/24/outline';
 import { signOutUser } from '@sfsr/shared';
-import { Link, Route, Routes } from 'react-router-dom';
+import { Link, NavLink, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import RequireBuyer from './auth/RequireBuyer';
+import AboutPage from './pages/AboutPage';
+import ContactPage from './pages/ContactPage';
 import HomePage from './pages/HomePage';
+import HowItWorksPage from './pages/HowItWorksPage';
 import LoginPage from './pages/LoginPage';
+import ProjectsPage from './pages/ProjectsPage';
 import MyReservationsPage from './pages/MyReservationsPage';
 import ProfilePage from './pages/ProfilePage';
 import RegisterPage from './pages/RegisterPage';
@@ -25,6 +30,10 @@ export default function App() {
       <main className="content">
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/how-it-works" element={<HowItWorksPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/contact" element={<ContactPage />} />
           <Route path="/units" element={<UnitsPage />} />
           <Route path="/units/:unitId" element={<UnitDetailPage />} />
           <Route path="/login" element={<LoginPage />} />
@@ -71,26 +80,53 @@ export default function App() {
   );
 }
 
+/** Public sections, in the order the reference design lists them. */
+const NAV_LINKS = [
+  { to: '/', label: 'Home', end: true },
+  { to: '/projects', label: 'Projects' },
+  { to: '/units', label: 'Available Units' },
+  { to: '/how-it-works', label: 'How It Works' },
+  { to: '/about', label: 'About Us' },
+  { to: '/contact', label: 'Contact Us' },
+];
+
 function TopBar() {
   const { user, profile, loading } = useAuth();
 
   return (
     <header className="topbar">
       <Link to="/" className="brand">
-        <img src="/logo.jpg" alt="St. Francis Square Realty" className="brand-logo" />
+        <img
+          src="/logo.jpg"
+          alt="St. Francis Square Realty"
+          className="brand-logo"
+        />
         <span className="brand-text">
           St. Francis Square Realty
-          <small>Real Estate Portal</small>
+          <small>Real Estate Management System</small>
         </span>
       </Link>
 
       <nav className="topnav">
-        <Link to="/units">Available units</Link>
+        {NAV_LINKS.map((link) => (
+          <NavLink
+            key={link.to}
+            to={link.to}
+            end={link.end}
+            className={({ isActive }) => (isActive ? 'is-active' : undefined)}
+          >
+            {link.label}
+          </NavLink>
+        ))}
+      </nav>
+
+      <div className="topbar-account">
         {loading ? null : user ? (
           <>
-            <Link to="/reservations">My reservations</Link>
-            <Link to="/profile">
-              {profile?.firstName ? `Hi, ${profile.firstName}` : 'My profile'}
+            <NavLink to="/reservations">My Reservations</NavLink>
+            <Link to="/profile" className="btn btn-brand">
+              <UserCircleIcon className="icon" />
+              {profile?.firstName ?? 'My profile'}
             </Link>
             <button
               type="button"
@@ -101,14 +137,12 @@ function TopBar() {
             </button>
           </>
         ) : (
-          <>
-            <Link to="/login">Sign in</Link>
-            <Link to="/register" className="btn btn-gold">
-              Register
-            </Link>
-          </>
+          <Link to="/login" className="btn btn-brand">
+            <UserCircleIcon className="icon" />
+            Register / Login
+          </Link>
         )}
-      </nav>
+      </div>
     </header>
   );
 }

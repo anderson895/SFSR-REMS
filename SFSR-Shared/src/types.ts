@@ -37,10 +37,12 @@ export const fullNameOf = (
 export interface Unit {
   id: string;
   projectName: string;
+  /** Where the project stands, e.g. "Legaspi Village, Makati City". */
+  location?: string;
   building: string;
   unitNo: string;
   floor: number;
-  /** e.g. "Studio", "1BR", "2BR" */
+  /** e.g. "Studio", "1BR", "2BR", "3BR" */
   type: string;
   floorAreaSqm: number;
   price: number;
@@ -83,6 +85,13 @@ export interface Reservation {
   createdAt: Timestamp;
   reviewedBy?: string;
   reviewedAt?: Timestamp;
+  /**
+   * Who withdrew the reservation. Kept separate from `reviewedBy` because a
+   * cancellation is not a review — this is often the buyer themselves, and
+   * conflating the two would misreport who assessed the application.
+   */
+  cancelledBy?: string;
+  cancelledAt?: Timestamp;
   remarks?: string;
 }
 

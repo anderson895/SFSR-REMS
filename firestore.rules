@@ -80,7 +80,26 @@ service cloud.firestore {
             && request.resource.data.unitNo == resource.data.unitNo;
       }
 
-      allow update: if isStaff() || (signedIn() && buyerPlacingHold());
+      // The mirror image: a buyer withdrawing their own reservation puts the
+      // unit back on the market.
+      //
+      // The final clause is what makes this safe. Allowing any signed-in user
+      // to move a unit from 'on_hold' to 'available' would hand them a way to
+      // release someone else's hold and take the unit — so the reservation
+      // named in heldBy is read, and it must belong to the caller.
+      function buyerReleasingOwnHold() {
+        return resource.data.status == 'on_hold'
+            && request.resource.data.status == 'available'
+            && request.resource.data.heldBy == null
+            && request.resource.data.price == resource.data.price
+            && request.resource.data.unitNo == resource.data.unitNo
+            && resource.data.heldBy is string
+            && get(/databases/$(database)/documents/reservations/$(resource.data.heldBy)).data.buyerUid == request.auth.uid;
+      }
+
+      allow update: if isStaff()
+                    || (signedIn() && buyerPlacingHold())
+                    || (signedIn() && buyerReleasingOwnHold());
 
       allow create, delete: if isStaff();
     }
@@ -97,8 +116,24 @@ service cloud.firestore {
                         && request.resource.data.buyerUid == request.auth.uid
                         && request.resource.data.status == 'pending');
 
-      // Approval, rejection, and cancellation are staff-only decisions.
-      allow update, delete: if isStaff();
+      // Approval and rejection are staff-only judgements on an application.
+      //
+      // Cancellation is not a judgement — it is the buyer withdrawing, so they
+      // may do it to their own reservation while it is still open. The status
+      // is pinned to 'cancelled' and the identifying fields are frozen, so this
+      // cannot be used to approve oneself or to re-point a reservation at a
+      // different unit or buyer.
+      function buyerCancellingOwn() {
+        return resource.data.buyerUid == request.auth.uid
+            && request.resource.data.status == 'cancelled'
+            && resource.data.status in ['pending', 'under_review']
+            && request.resource.data.unitId == resource.data.unitId
+            && request.resource.data.buyerUid == resource.data.buyerUid
+            && request.resource.data.buyer == resource.data.buyer;
+      }
+
+      allow update: if isStaff() || (signedIn() && buyerCancellingOwn());
+      allow delete: if isStaff();
     }
 
     // --- documents -------------------------------------------------------

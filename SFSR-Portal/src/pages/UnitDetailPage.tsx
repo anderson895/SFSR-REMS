@@ -32,8 +32,16 @@ export default function UnitDetailPage() {
       <header className="unit-detail-head">
         <div>
           <h1>Unit {unit.unitNo}</h1>
+          {/* A single-tower development names its tower after itself, so
+              printing both reads as "The Legaspi Place · The Legaspi Place". */}
           <p className="unit-card-sub">
-            {unit.projectName} &middot; {unit.building}
+            {[
+              unit.projectName,
+              unit.building === unit.projectName ? '' : unit.building,
+              unit.location ?? '',
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
         </div>
         <span className={`status-pill status-${unit.status}`}>
@@ -90,10 +98,18 @@ export default function UnitDetailPage() {
               <dt>Floor</dt>
               <dd>{unit.floor}</dd>
             </div>
-            <div>
-              <dt>Tower</dt>
-              <dd>{unit.building}</dd>
-            </div>
+            {unit.building !== unit.projectName && (
+              <div>
+                <dt>Tower</dt>
+                <dd>{unit.building}</dd>
+              </div>
+            )}
+            {unit.location && (
+              <div>
+                <dt>Location</dt>
+                <dd>{unit.location}</dd>
+              </div>
+            )}
           </dl>
 
           {available ? (

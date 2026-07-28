@@ -83,6 +83,71 @@ export const DocType = {
 } as const;
 export type DocType = (typeof DocType)[keyof typeof DocType];
 
+/**
+ * Specific government IDs the system can recognise.
+ *
+ * `DocType.VALID_ID` alone is too coarse: it accepts anything that looks like
+ * an ID, so a buyer who picks "Driver's License" can upload a PhilHealth card
+ * and pass. Naming the exact card lets Stage 1 reject that.
+ *
+ * This list is deliberately wider than what is *accepted* — see
+ * `ACCEPTED_ID_TYPES`. A PhilHealth card is not a primary ID for a property
+ * transaction, but the system still has to recognise one in order to say
+ * "this is a PhilHealth ID, not the Driver's License you selected" rather than
+ * the useless "this does not look like a valid ID".
+ */
+export const IdType = {
+  PHILSYS: 'philsys',
+  PASSPORT: 'passport',
+  DRIVERS_LICENSE: 'drivers_license',
+  UMID: 'umid',
+  PRC_ID: 'prc_id',
+  POSTAL_ID: 'postal_id',
+  VOTERS_ID: 'voters_id',
+  // Recognised so they can be named when rejected, never offered as a choice.
+  PHILHEALTH: 'philhealth',
+  TIN_ID: 'tin_id',
+  SENIOR_CITIZEN: 'senior_citizen',
+  PWD_ID: 'pwd_id',
+  BARANGAY_ID: 'barangay_id',
+} as const;
+export type IdType = (typeof IdType)[keyof typeof IdType];
+
+export const ID_TYPE_LABELS: Record<IdType, string> = {
+  [IdType.PHILSYS]: 'PhilSys / National ID',
+  [IdType.PASSPORT]: 'Philippine Passport',
+  [IdType.DRIVERS_LICENSE]: "Driver's License (LTO)",
+  [IdType.UMID]: 'UMID (SSS/GSIS)',
+  [IdType.PRC_ID]: 'PRC ID',
+  [IdType.POSTAL_ID]: 'Postal ID',
+  [IdType.VOTERS_ID]: "Voter's ID",
+  [IdType.PHILHEALTH]: 'PhilHealth ID',
+  [IdType.TIN_ID]: 'TIN ID',
+  [IdType.SENIOR_CITIZEN]: 'Senior Citizen ID',
+  [IdType.PWD_ID]: 'PWD ID',
+  [IdType.BARANGAY_ID]: 'Barangay ID',
+};
+
+/**
+ * The primary IDs a buyer may actually submit.
+ *
+ * Restricted to cards that carry a photograph, a signature and a verifiable
+ * issuing authority, which is what a property transaction requires. The
+ * secondary IDs above are recognised but refused.
+ */
+export const ACCEPTED_ID_TYPES: IdType[] = [
+  IdType.PHILSYS,
+  IdType.PASSPORT,
+  IdType.DRIVERS_LICENSE,
+  IdType.UMID,
+  IdType.PRC_ID,
+  IdType.POSTAL_ID,
+  IdType.VOTERS_ID,
+];
+
+export const isAcceptedIdType = (value: string | undefined): boolean =>
+  ACCEPTED_ID_TYPES.includes(value as IdType);
+
 export const DOC_TYPE_LABELS: Record<DocType, string> = {
   [DocType.VALID_ID]: 'Valid Government-Issued ID',
   [DocType.PROOF_OF_BILLING]: 'Proof of Billing',

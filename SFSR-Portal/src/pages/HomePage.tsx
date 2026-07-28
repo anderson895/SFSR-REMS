@@ -1,40 +1,48 @@
-import { useMemo, useState } from 'react';
+import {
+  ArrowUpTrayIcon,
+  BuildingOffice2Icon,
+  CalendarDaysIcon,
+  CheckBadgeIcon,
+  HomeModernIcon,
+  MapPinIcon,
+  ShieldCheckIcon,
+  SparklesIcon,
+  UserPlusIcon,
+} from '@heroicons/react/24/outline';
+import { type ComponentType, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { formatPeso, useBrowsableUnits } from '../units/useUnits';
+import {
+  formatPesoShort,
+  useBrowsableUnits,
+  useProjects,
+} from '../units/useUnits';
 
 const ANY = 'any';
 
 /**
  * Public landing page.
  *
- * Every number shown here — unit counts, starting prices, unit types — is read
- * live from Firestore rather than hard-coded. A brochure page that claims "34
- * available units" while the inventory says otherwise is worse than no page at
- * all, and this one cannot drift out of date.
+ * Every figure shown here — unit counts, starting prices, unit types, project
+ * names — is read live from Firestore rather than hard-coded. A brochure page
+ * that claims "34 available units" while the inventory says otherwise is worse
+ * than no page at all, and this one cannot drift out of date.
  */
 export default function HomePage() {
-  // The home page counts and features only genuinely available units — a unit
-  // someone else is already processing should not be advertised as an option.
+  // Counts and features only genuinely available units — a unit someone else
+  // is already processing should not be advertised as an option.
   const { available: units, loading } = useBrowsableUnits();
+  const { projects } = useProjects();
   const navigate = useNavigate();
 
+  const [project, setProject] = useState(ANY);
   const [type, setType] = useState(ANY);
+  const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
 
-  /** Live per-type summary: how many are left and what they start at. */
-  const byType = useMemo(() => {
-    const groups = new Map<string, { count: number; from: number }>();
-    for (const unit of units) {
-      const existing = groups.get(unit.type);
-      groups.set(unit.type, {
-        count: (existing?.count ?? 0) + 1,
-        from: Math.min(existing?.from ?? Infinity, unit.price),
-      });
-    }
-    return [...groups.entries()].sort((a, b) => a[1].from - b[1].from);
-  }, [units]);
-
-  const featured = useMemo(() => units.slice(0, 3), [units]);
+  const types = useMemo(
+    () => [...new Set(units.map((u) => u.type))],
+    [units],
+  );
 
   const startingPrice = units.length
     ? Math.min(...units.map((u) => u.price))
@@ -43,208 +51,287 @@ export default function HomePage() {
   function handleSearch(event: React.FormEvent) {
     event.preventDefault();
     const params = new URLSearchParams();
+    if (project !== ANY) params.set('project', project);
     if (type !== ANY) params.set('type', type);
+    if (minPrice) params.set('minPrice', minPrice);
     if (maxPrice) params.set('maxPrice', maxPrice);
     navigate(`/units?${params.toString()}`);
   }
 
   return (
     <div className="home">
-      {/* ---------------------------------------------------------- hero */}
-      <section className="home-hero">
-        <div className="home-hero-inner">
-          <p className="eyebrow">St. Francis Square Residences · Mandaluyong City</p>
-          <h1>Your home in the heart of the metro</h1>
-          <p className="home-hero-sub">
-            Studio, one-bedroom, and two-bedroom condominium units — browse the
-            live inventory, reserve online, and track your requirements from one
-            account.
-          </p>
-
-          <form className="hero-search" onSubmit={handleSearch}>
-            <label>
-              Unit type
-              <select value={type} onChange={(e) => setType(e.target.value)}>
-                <option value={ANY}>Any type</option>
-                {byType.map(([t]) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              Budget up to
-              <input
-                type="number"
-                placeholder="e.g. 6000000"
-                value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value)}
-              />
-            </label>
-
-            <button type="submit" className="btn btn-gold">
-              Search units
-            </button>
-          </form>
-
-          {!loading && (
-            <p className="hero-stat">
-              <strong>{units.length}</strong> units available today
-              {startingPrice > 0 && (
-                <> · starting at <strong>{formatPeso(startingPrice)}</strong></>
-              )}
+      {/* ------------------------------------------------------------ hero */}
+      <section className="hero">
+        <div className="hero-inner">
+          <div className="hero-copy">
+            <h1>Find Your Perfect Home.</h1>
+            <p>
+              Explore our quality condominium projects and reserve your dream
+              unit online.
             </p>
-          )}
+            <div className="hero-actions">
+              <Link to="/projects" className="btn btn-brand">
+                Browse Projects
+              </Link>
+              <Link to="/units" className="btn btn-on-photo">
+                View Available Units
+              </Link>
+            </div>
+          </div>
+
+          <aside className="why-card">
+            <h2>Why Choose Us?</h2>
+            <ul>
+              {WHY_US.map(({ Icon, title, body }) => (
+                <li key={title}>
+                  <span className="why-icon">
+                    <Icon className="icon" />
+                  </span>
+                  <div>
+                    <strong>{title}</strong>
+                    <p>{body}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </aside>
         </div>
       </section>
 
-      {/* --------------------------------------------------- unit types */}
-      <section className="home-section">
-        <header className="section-head">
-          <h2>Choose your space</h2>
-          <p>Availability updates the moment a unit is reserved.</p>
-        </header>
+      {/* ---------------------------------------------------- search panel */}
+      <form className="unit-search" onSubmit={handleSearch}>
+        <span className="unit-search-label">Find Your Ideal Unit</span>
 
-        {loading ? (
-          <p className="loading">Loading inventory…</p>
-        ) : (
-          <div className="type-grid">
-            {byType.map(([unitType, info]) => (
-              <Link
-                key={unitType}
-                to={`/units?type=${encodeURIComponent(unitType)}`}
-                className="type-card"
-              >
-                <span className="type-card-label">{unitType}</span>
-                <span className="type-card-count">
-                  {info.count} unit{info.count === 1 ? '' : 's'} available
-                </span>
-                <span className="type-card-price">
-                  from {formatPeso(info.from)}
-                </span>
-                <span className="type-card-go">View units &rarr;</span>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
+        <select value={project} onChange={(e) => setProject(e.target.value)}>
+          <option value={ANY}>All Projects</option>
+          {projects.map((p) => (
+            <option key={p.name} value={p.name}>
+              {p.name}
+            </option>
+          ))}
+        </select>
 
-      {/* ---------------------------------------------------- featured */}
-      {featured.length > 0 && (
-        <section className="home-section alt">
-          <header className="section-head">
-            <h2>Featured units</h2>
-            <p>The most accessible units currently on the market.</p>
-          </header>
+        <select value={type} onChange={(e) => setType(e.target.value)}>
+          <option value={ANY}>Unit Type</option>
+          {types.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
 
-          <div className="unit-grid">
-            {featured.map((unit) => (
-              <Link key={unit.id} to={`/units/${unit.id}`} className="unit-card">
-                <div className="unit-card-media">
-                  {unit.images[0] ? (
-                    <img src={unit.images[0]} alt={`Unit ${unit.unitNo}`} />
-                  ) : (
-                    <span className="unit-card-type">{unit.type}</span>
-                  )}
-                  {unit.promo && <span className="unit-promo">{unit.promo}</span>}
-                </div>
-                <div className="unit-card-body">
-                  <h3>Unit {unit.unitNo}</h3>
-                  <p className="unit-card-sub">
-                    {unit.building} · {unit.floorAreaSqm} sqm · Floor {unit.floor}
-                  </p>
-                  <p className="unit-card-price">{formatPeso(unit.price)}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
+        <input
+          type="number"
+          placeholder="Min. Price"
+          value={minPrice}
+          onChange={(e) => setMinPrice(e.target.value)}
+        />
+        <input
+          type="number"
+          placeholder="Max. Price"
+          value={maxPrice}
+          onChange={(e) => setMaxPrice(e.target.value)}
+        />
 
-          <div className="section-foot">
-            <Link to="/units" className="btn btn-primary btn-inline">
-              See all available units
-            </Link>
-          </div>
-        </section>
+        <button type="submit" className="btn btn-accent">
+          Search Units
+        </button>
+      </form>
+
+      {!loading && units.length > 0 && (
+        <p className="hero-stat">
+          <strong>{units.length}</strong> units available today &middot; starting
+          at <strong>{formatPesoShort(startingPrice)}</strong>
+        </p>
       )}
 
-      {/* --------------------------------------------------- amenities */}
-      <section className="home-section">
-        <header className="section-head">
-          <h2>Amenities</h2>
-          <p>Shared facilities available to every resident.</p>
-        </header>
-
-        <ul className="amenity-grid">
-          {[
-            'Swimming Pool',
-            'Fitness Gym',
-            'Function Room',
-            'Playground',
-            'Sky Garden',
-            '24/7 Security',
-            'Basement Parking',
-            'Convenience Store',
-          ].map((amenity) => (
-            <li key={amenity}>{amenity}</li>
-          ))}
-        </ul>
-      </section>
-
-      {/* ------------------------------------------------- how it works */}
-      <section className="home-section alt">
-        <header className="section-head">
-          <h2>How reserving works</h2>
-          <p>From browsing to an approved reservation.</p>
-        </header>
-
-        <ol className="steps">
-          <li>
-            <span className="step-no">1</span>
-            <h3>Browse</h3>
-            <p>View units, floor areas, and prices. No account needed.</p>
-          </li>
-          <li>
-            <span className="step-no">2</span>
-            <h3>Register</h3>
-            <p>
-              Create an account using your name exactly as it appears on your
-              valid ID.
-            </p>
-          </li>
-          <li>
-            <span className="step-no">3</span>
-            <h3>Reserve</h3>
-            <p>
-              The unit is placed <strong>On Hold</strong> immediately so no one
-              else can reserve it while you complete your requirements.
-            </p>
-          </li>
-          <li>
-            <span className="step-no">4</span>
-            <h3>Upload documents</h3>
-            <p>
-              Submit your valid ID, proof of billing, income documents, and proof
-              of payment. Each file is checked automatically on upload.
-            </p>
-          </li>
-          <li>
-            <span className="step-no">5</span>
-            <h3>Approval</h3>
-            <p>
-              Our staff review every document. Once approved, the unit becomes
-              yours and your account unlocks the Client Portal.
-            </p>
-          </li>
-        </ol>
-
-        <div className="section-foot">
-          <Link to="/register" className="btn btn-gold btn-inline">
-            Create an account
+      {/* ------------------------------------------- steps + featured split */}
+      <div className="home-split">
+        <section className="steps-col">
+          <h2>Simple Steps to Reserve</h2>
+          <ol className="step-row">
+            {STEPS.map(({ Icon, title, body }, index) => (
+              <li key={title}>
+                <span className="step-icon">
+                  <Icon className="icon" />
+                  <span className="step-badge">{index + 1}</span>
+                </span>
+                <strong>{title}</strong>
+                <p>{body}</p>
+              </li>
+            ))}
+          </ol>
+          <Link to="/how-it-works" className="btn btn-outline">
+            How It Works
           </Link>
-        </div>
+        </section>
+
+        <section className="featured-col">
+          <header className="section-head-row">
+            <h2>Featured Projects</h2>
+            <Link to="/projects" className="text-link">
+              View All Projects &rarr;
+            </Link>
+          </header>
+          <ProjectCarousel />
+        </section>
+      </div>
+
+      {/* -------------------------------------------------- assurance strip */}
+      <section className="assurance">
+        {ASSURANCES.map(({ Icon, title, body }) => (
+          <div key={title}>
+            <span className="assurance-icon">
+              <Icon className="icon" />
+            </span>
+            <div>
+              <strong>{title}</strong>
+              <p>{body}</p>
+            </div>
+          </div>
+        ))}
       </section>
     </div>
   );
 }
+
+/**
+ * Horizontally scrolling project strip.
+ *
+ * Uses native scrolling with CSS snap points rather than a transform-driven
+ * slider: it keeps keyboard, touch and trackpad behaviour for free, and the
+ * arrows just nudge `scrollLeft`.
+ */
+function ProjectCarousel() {
+  const { projects, loading } = useProjects();
+  const track = useRef<HTMLDivElement>(null);
+
+  function scrollBy(direction: 1 | -1) {
+    track.current?.scrollBy({
+      left: direction * 260,
+      behavior: 'smooth',
+    });
+  }
+
+  if (loading) return <p className="loading">Loading projects…</p>;
+
+  if (projects.length === 0) {
+    return <p className="hint">No projects are listed yet.</p>;
+  }
+
+  return (
+    <div className="carousel">
+      <button
+        type="button"
+        className="carousel-arrow"
+        aria-label="Previous projects"
+        onClick={() => scrollBy(-1)}
+      >
+        &#8249;
+      </button>
+
+      <div className="carousel-track" ref={track}>
+        {projects.map((p) => (
+          <Link
+            key={p.name}
+            to={`/units?project=${encodeURIComponent(p.name)}`}
+            className="project-card"
+          >
+            <div className="project-card-media">
+              {p.image && <img src={p.image} alt={p.name} />}
+            </div>
+            <div className="project-card-body">
+              <strong>{p.name}</strong>
+              <p className="project-card-loc">{p.location}</p>
+              <p className="project-card-from">Price starts at</p>
+              <p className="project-card-price">
+                {formatPesoShort(p.startingPrice)}
+              </p>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        className="carousel-arrow"
+        aria-label="Next projects"
+        onClick={() => scrollBy(1)}
+      >
+        &#8250;
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Heroicons rather than emoji.
+ *
+ * Emoji render as a different glyph on every platform — and in colour, which
+ * fights the palette instead of inheriting it. These are plain SVG that take
+ * `currentColor`, so one CSS rule controls them all.
+ */
+interface Feature {
+  Icon: ComponentType<{ className?: string }>;
+  title: string;
+  body: string;
+}
+
+const WHY_US: Feature[] = [
+  {
+    Icon: MapPinIcon,
+    title: 'Prime Locations',
+    body: 'Strategically located in key business and lifestyle districts.',
+  },
+  {
+    Icon: SparklesIcon,
+    title: 'Quality Living',
+    body: 'Thoughtfully designed spaces for your comfort and lifestyle.',
+  },
+  {
+    Icon: ShieldCheckIcon,
+    title: 'Secure & Reliable',
+    body: 'Safe transactions and secure document management.',
+  },
+  {
+    Icon: HomeModernIcon,
+    title: 'Easy & Convenient',
+    body: 'Reserve online and track your application anytime, anywhere.',
+  },
+];
+
+const STEPS: Feature[] = [
+  {
+    Icon: UserPlusIcon,
+    title: 'Create an Account',
+    body: 'Register to get started with your reservation.',
+  },
+  {
+    Icon: BuildingOffice2Icon,
+    title: 'Choose a Unit',
+    body: 'Browse available units and select your preferred one.',
+  },
+  {
+    Icon: ArrowUpTrayIcon,
+    title: 'Submit Requirements',
+    body: 'Upload your documents and proof of payment online.',
+  },
+  {
+    Icon: CheckBadgeIcon,
+    title: 'Track & Update',
+    body: 'Monitor your reservation status in real time.',
+  },
+];
+
+const ASSURANCES: Feature[] = [
+  {
+    Icon: CalendarDaysIcon,
+    title: 'Real-time Availability',
+    body: 'Check unit availability the moment it changes.',
+  },
+  {
+    Icon: ShieldCheckIcon,
+    title: 'Secure Document Upload',
+    body: 'Your documents are validated on upload and kept private.',
+  },
+];

@@ -6,10 +6,12 @@ import {
   type Reservation,
   ReservationStatus,
   ValidationPanel,
+  cancelReservation,
   db,
   fullNameOf,
   requirementProgress,
   useReservationDocuments,
+  writeAuditLog,
 } from '@sfsr/shared';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
@@ -21,6 +23,11 @@ export default function ReservationDetailPage() {
   const { user } = useAuth();
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelError, setCancelError] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   const { documents } = useReservationDocuments(reservationId);
   const progress = requirementProgress(documents);
@@ -57,6 +64,40 @@ export default function ReservationDetailPage() {
   const closed =
     reservation.status === ReservationStatus.REJECTED ||
     reservation.status === ReservationStatus.CANCELLED;
+
+  // Withdrawing is the buyer's to make only while the application is still
+  // open. Once approved, money and a converted account are involved and the
+  // sales office has to handle it.
+  const cancellable =
+    reservation.status === ReservationStatus.PENDING ||
+    reservation.status === ReservationStatus.UNDER_REVIEW;
+
+  async function handleCancel() {
+    if (!reservation || !user) return;
+
+    setCancelError('');
+    setCancelling(true);
+    try {
+      await cancelReservation(reservation.id, user.uid, cancelReason.trim());
+
+      await writeAuditLog({
+        actorUid: user.uid,
+        actorName: fullNameOf(reservation.buyer),
+        action: 'reservation.cancelled',
+        targetType: 'reservation',
+        targetId: reservation.id,
+        meta: { unitId: reservation.unitId, by: 'buyer' },
+      });
+
+      setConfirmingCancel(false);
+    } catch (err) {
+      setCancelError(
+        (err as Error).message ?? 'Could not cancel this reservation.',
+      );
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   return (
     <>
@@ -190,6 +231,58 @@ export default function ReservationDetailPage() {
           </ul>
         )}
       </section>
+
+      {cancellable && (
+        <section className="panel-card danger-zone">
+          <h2>Cancel this reservation</h2>
+          <p className="hint">
+            Unit {reservation.unitLabel} is currently on hold for you. Cancelling
+            releases it immediately and it returns to the public listing, where
+            another buyer can reserve it. This cannot be undone.
+          </p>
+
+          {cancelError && <p className="field-error">{cancelError}</p>}
+
+          {confirmingCancel ? (
+            <>
+              <label>
+                Reason <span className="optional">(optional)</span>
+                <input
+                  value={cancelReason}
+                  placeholder="e.g. changed my mind about the floor"
+                  onChange={(e) => setCancelReason(e.target.value)}
+                />
+              </label>
+              <div className="danger-actions">
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  disabled={cancelling}
+                  onClick={() => void handleCancel()}
+                >
+                  {cancelling ? 'Cancelling…' : 'Yes, release the unit'}
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={cancelling}
+                  onClick={() => setConfirmingCancel(false)}
+                >
+                  Keep my reservation
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={() => setConfirmingCancel(true)}
+            >
+              Cancel reservation
+            </button>
+          )}
+        </section>
+      )}
     </>
   );
 }

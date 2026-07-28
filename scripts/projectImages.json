@@ -1,0 +1,37 @@
+{
+  "the-legaspi-place/1-br-legaspi": {
+    "url": "https://res.cloudinary.com/riayd2nv/image/upload/f_auto,q_auto,c_limit,w_1600/v1785234946/sfsr/projects/the-legaspi-place/1-br-legaspi.png",
+    "originalUrl": "https://res.cloudinary.com/riayd2nv/image/upload/v1785234946/sfsr/projects/the-legaspi-place/1-br-legaspi.png",
+    "publicId": "sfsr/projects/the-legaspi-place/1-br-legaspi",
+    "width": 1402,
+    "height": 1122
+  },
+  "the-legaspi-place/2-br-legaspi": {
+    "url": "https://res.cloudinary.com/riayd2nv/image/upload/f_auto,q_auto,c_limit,w_1600/v1785234948/sfsr/projects/the-legaspi-place/2-br-legaspi.png",
+    "originalUrl": "https://res.cloudinary.com/riayd2nv/image/upload/v1785234948/sfsr/projects/the-legaspi-place/2-br-legaspi.png",
+    "publicId": "sfsr/projects/the-legaspi-place/2-br-legaspi",
+    "width": 1402,
+    "height": 1122
+  },
+  "the-legaspi-place/3-br-legaspi": {
+    "url": "https://res.cloudinary.com/riayd2nv/image/upload/f_auto,q_auto,c_limit,w_1600/v1785234949/sfsr/projects/the-legaspi-place/3-br-legaspi.png",
+    "originalUrl": "https://res.cloudinary.com/riayd2nv/image/upload/v1785234949/sfsr/projects/the-legaspi-place/3-br-legaspi.png",
+    "publicId": "sfsr/projects/the-legaspi-place/3-br-legaspi",
+    "width": 1402,
+    "height": 1122
+  },
+  "the-legaspi-place/studio-legaspi": {
+    "url": "https://res.cloudinary.com/riayd2nv/image/upload/f_auto,q_auto,c_limit,w_1600/v1785234950/sfsr/projects/the-legaspi-place/studio-legaspi.png",
+    "originalUrl": "https://res.cloudinary.com/riayd2nv/image/upload/v1785234950/sfsr/projects/the-legaspi-place/studio-legaspi.png",
+    "publicId": "sfsr/projects/the-legaspi-place/studio-legaspi",
+    "width": 1402,
+    "height": 1122
+  },
+  "the-legaspi-place/the-legaspi-place": {
+    "url": "https://res.cloudinary.com/riayd2nv/image/upload/f_auto,q_auto,c_limit,w_1600/v1785234952/sfsr/projects/the-legaspi-place/the-legaspi-place.png",
+    "originalUrl": "https://res.cloudinary.com/riayd2nv/image/upload/v1785234952/sfsr/projects/the-legaspi-place/the-legaspi-place.png",
+    "publicId": "sfsr/projects/the-legaspi-place/the-legaspi-place",
+    "width": 1024,
+    "height": 1536
+  }
+}

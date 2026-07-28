@@ -213,6 +213,77 @@ export async function requestAdditionalDocuments(
 }
 
 /**
+ * Statuses a reservation can still be cancelled from.
+ *
+ * An approved reservation is deliberately excluded. By then the unit is
+ * `reserved`, the buyer's account has been converted to a Client Account, and
+ * a reservation fee has changed hands — unwinding that is a staff decision
+ * with money attached, not a button on a portal page.
+ */
+const CANCELLABLE_STATUSES: string[] = [
+  ReservationStatus.PENDING,
+  ReservationStatus.UNDER_REVIEW,
+];
+
+/**
+ * Cancels a reservation and returns the unit to the market.
+ *
+ * Used by both apps: a buyer withdrawing their own reservation, and staff
+ * releasing one on the buyer's behalf. The two differ only in who is allowed
+ * to call it, which `firestore.rules` enforces — the logic of releasing the
+ * hold is identical and must not be written twice.
+ *
+ * Transactional for the same reason approval is: the unit must not be freed
+ * while a concurrent approval is turning it into a sale.
+ */
+export async function cancelReservation(
+  reservationId: string,
+  actorUid: string,
+  reason = '',
+): Promise<void> {
+  const reservationRef = doc(db, COLLECTIONS.RESERVATIONS, reservationId);
+
+  await runTransaction(db, async (tx: Transaction) => {
+    const reservationSnap = await tx.get(reservationRef);
+    if (!reservationSnap.exists()) throw new Error('Reservation not found.');
+
+    const reservation = reservationSnap.data();
+
+    if (reservation.status === ReservationStatus.APPROVED) {
+      throw new Error(
+        'This reservation has already been approved and can no longer be ' +
+          'cancelled here. Please contact the sales office.',
+      );
+    }
+    if (!CANCELLABLE_STATUSES.includes(reservation.status)) {
+      throw new Error(
+        `This reservation is already ${reservation.status} and cannot be cancelled.`,
+      );
+    }
+
+    const unitRef = doc(db, COLLECTIONS.UNITS, reservation.unitId);
+    const unitSnap = await tx.get(unitRef);
+
+    // Only release the unit if this reservation is the one holding it —
+    // otherwise we would free a unit another reservation legitimately owns.
+    if (unitSnap.exists() && unitSnap.data().heldBy === reservationId) {
+      tx.update(unitRef, {
+        status: UnitStatus.AVAILABLE,
+        heldBy: null,
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    tx.update(reservationRef, {
+      status: ReservationStatus.CANCELLED,
+      cancelledBy: actorUid,
+      cancelledAt: serverTimestamp(),
+      remarks: reason,
+    });
+  });
+}
+
+/**
  * Rejects a reservation and returns the unit to Available so it reappears on
  * the portal.
  */

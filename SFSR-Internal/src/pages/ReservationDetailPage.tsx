@@ -8,6 +8,7 @@ import {
   Role,
   type Unit,
   approveReservation,
+  cancelReservation,
   db,
   fullNameOf,
   rejectReservation,
@@ -159,6 +160,40 @@ export default function ReservationDetailPage() {
     }
   }
 
+  /**
+   * Releases the hold on the buyer's behalf.
+   *
+   * Distinct from Reject: rejection is the company turning an application down
+   * and is recorded as such, whereas this is the buyer withdrawing — usually
+   * phoned in — and must not appear in the trail as a company decision.
+   */
+  async function handleCancel() {
+    if (!user || !reservation) return;
+    const reason = window.prompt(
+      'Cancelling on the buyer\'s behalf releases the unit back to the market.\n\n' +
+        'Reason (shown to the buyer):',
+    );
+    if (reason === null) return;
+
+    setError('');
+    setBusy(true);
+    try {
+      await cancelReservation(reservation.id, user.uid, reason);
+      await writeAuditLog({
+        actorUid: user.uid,
+        actorName: profile ? fullNameOf(profile) : 'staff',
+        action: 'reservation.cancelled',
+        targetType: 'reservation',
+        targetId: reservation.id,
+        meta: { unitId: reservation.unitId, reason, by: 'staff' },
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const { buyer } = reservation;
 
   return (
@@ -300,6 +335,14 @@ export default function ReservationDetailPage() {
                 onClick={() => void handleReject()}
               >
                 Reject
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={busy}
+                onClick={() => void handleCancel()}
+              >
+                Cancel for buyer
               </button>
             </div>
           </>
