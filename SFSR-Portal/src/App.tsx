@@ -2,6 +2,7 @@ import { signOutUser } from '@sfsr/shared';
 import { Link, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import RequireBuyer from './auth/RequireBuyer';
+import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import MyReservationsPage from './pages/MyReservationsPage';
 import ProfilePage from './pages/ProfilePage';
@@ -23,7 +24,7 @@ export default function App() {
       <TopBar />
       <main className="content">
         <Routes>
-          <Route path="/" element={<Landing />} />
+          <Route path="/" element={<HomePage />} />
           <Route path="/units" element={<UnitsPage />} />
           <Route path="/units/:unitId" element={<UnitDetailPage />} />
           <Route path="/login" element={<LoginPage />} />
@@ -109,21 +110,6 @@ function TopBar() {
         )}
       </nav>
     </header>
-  );
-}
-
-function Landing() {
-  return (
-    <section className="hero">
-      <h1>Find your home at St. Francis Square</h1>
-      <p>
-        Browse available condominium units, view floor plans and amenities, and
-        reserve online.
-      </p>
-      <Link to="/units" className="btn btn-gold btn-hero">
-        Browse available units
-      </Link>
-    </section>
   );
 }
 

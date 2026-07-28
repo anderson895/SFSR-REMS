@@ -9,14 +9,23 @@ import {
 } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 
+/** Statuses the public catalogue is allowed to show. */
+const BROWSABLE = [UnitStatus.AVAILABLE, UnitStatus.ON_HOLD];
+
 /**
- * Live list of units still on the market.
+ * Live list of units the public catalogue shows.
  *
- * Filtering by `available` in the query (not in the UI) is what makes an
- * approved unit disappear from the portal the moment staff approve it, which is
- * the behaviour the study specifies. `onSnapshot` means no refresh is needed.
+ * Includes `on_hold` deliberately. The study requires an approved unit to
+ * disappear — and `reserved`/`sold` still do, because they are absent from this
+ * query — but a unit that is merely being processed is shown, locked, rather
+ * than vanishing without explanation.
+ *
+ * Showing the hold is what makes the double-selling guard visible: two buyers
+ * on the same unit see it flip to "On Hold" in real time instead of one of them
+ * watching it silently disappear. Filtering happens in the query, not the UI,
+ * so a sold unit is never sent to the browser in the first place.
  */
-export function useAvailableUnits() {
+export function useBrowsableUnits() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -24,7 +33,7 @@ export function useAvailableUnits() {
   useEffect(() => {
     const q = query(
       collection(db, COLLECTIONS.UNITS),
-      where('status', '==', UnitStatus.AVAILABLE),
+      where('status', 'in', BROWSABLE),
       orderBy('price'),
     );
 
@@ -35,13 +44,15 @@ export function useAvailableUnits() {
         setLoading(false);
       },
       (err) => {
-        setError(err.message);
+        setError(`${err.code}: ${err.message}`);
         setLoading(false);
       },
     );
   }, []);
 
-  return { units, loading, error };
+  const available = units.filter((u) => u.status === UnitStatus.AVAILABLE);
+
+  return { units, available, loading, error };
 }
 
 /** Live single unit, including ones no longer available. */

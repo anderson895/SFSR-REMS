@@ -60,7 +60,7 @@ async function main() {
     `\nwhere status == "${UnitStatus.AVAILABLE}": ${filtered.size} document(s)`,
   );
 
-  // 3. The exact query behind the walk-in dropdown and the portal listing.
+  // 3. The exact query behind the walk-in dropdown.
   try {
     const exact = await getDocs(
       query(
@@ -72,6 +72,26 @@ async function main() {
     console.log(`filter + orderBy("price"): ${exact.size} document(s)`);
   } catch (error) {
     console.log(`filter + orderBy("price"): FAILED -> ${(error as Error).message}`);
+  }
+
+  // 4. The public catalogue query, which shows held units alongside available
+  //    ones. `in` queries can need a different index than `==`, so this is
+  //    checked separately rather than assumed to behave the same.
+  try {
+    const browsable = await getDocs(
+      query(
+        collection(db, 'units'),
+        where('status', 'in', [UnitStatus.AVAILABLE, UnitStatus.ON_HOLD]),
+        orderBy('price'),
+      ),
+    );
+    console.log(
+      `status in [available, on_hold] + orderBy: ${browsable.size} document(s)`,
+    );
+  } catch (error) {
+    console.log(
+      `status in [available, on_hold] + orderBy: FAILED -> ${(error as Error).message}`,
+    );
   }
 }
 

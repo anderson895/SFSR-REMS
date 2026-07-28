@@ -104,6 +104,15 @@ export default function UnitDetailPage() {
             >
               {user ? 'Reserve this unit' : 'Sign in to reserve'}
             </Link>
+          ) : unit.status === UnitStatus.ON_HOLD ? (
+            <div className="hold-note">
+              <strong>On hold</strong>
+              <p>
+                Another buyer has reserved this unit and their documents are
+                being reviewed. If that reservation is rejected or cancelled,
+                the unit returns to the listing automatically.
+              </p>
+            </div>
           ) : (
             <p className="unavailable-note">
               This unit is no longer available for reservation.

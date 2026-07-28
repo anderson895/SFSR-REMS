@@ -1,17 +1,23 @@
-import type { Unit } from '@sfsr/shared';
+import { type Unit, UnitStatus } from '@sfsr/shared';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { formatPeso, useAvailableUnits } from '../units/useUnits';
+import { Link, useSearchParams } from 'react-router-dom';
+import { formatPeso, useBrowsableUnits } from '../units/useUnits';
 
 const ANY = 'any';
 
 /** Public unit catalogue. No account required, per the study's Step 1. */
 export default function UnitsPage() {
-  const { units, loading, error } = useAvailableUnits();
+  const { units, available, loading, error } = useBrowsableUnits();
+  const onHoldCount = units.length - available.length;
+
+  // Seeded from the URL so the home page's search box lands here with filters
+  // already applied, and so a filtered view can be shared as a link.
+  const [params] = useSearchParams();
+
   const [search, setSearch] = useState('');
-  const [type, setType] = useState(ANY);
+  const [type, setType] = useState(params.get('type') ?? ANY);
   const [building, setBuilding] = useState(ANY);
-  const [maxPrice, setMaxPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState(params.get('maxPrice') ?? '');
 
   const buildings = useMemo(
     () => [...new Set(units.map((u) => u.building))].sort(),
@@ -56,7 +62,15 @@ export default function UnitsPage() {
     <>
       <div className="page-head">
         <h1>Available units</h1>
-        <p>{units.length} unit(s) currently on the market.</p>
+        <p>
+          {available.length} available
+          {onHoldCount > 0 && (
+            <>
+              {' '}
+              &middot; {onHoldCount} on hold and being processed
+            </>
+          )}
+        </p>
       </div>
 
       <div className="filters">
@@ -107,15 +121,24 @@ export default function UnitsPage() {
 }
 
 function UnitCard({ unit }: { unit: Unit }) {
+  const onHold = unit.status === UnitStatus.ON_HOLD;
+
   return (
-    <Link to={`/units/${unit.id}`} className="unit-card">
+    <Link
+      to={`/units/${unit.id}`}
+      className={`unit-card${onHold ? ' is-on-hold' : ''}`}
+    >
       <div className="unit-card-media">
         {unit.images[0] ? (
           <img src={unit.images[0]} alt={`Unit ${unit.unitNo}`} />
         ) : (
           <span className="unit-card-type">{unit.type}</span>
         )}
-        {unit.promo && <span className="unit-promo">{unit.promo}</span>}
+        {onHold ? (
+          <span className="unit-hold-badge">On hold</span>
+        ) : (
+          unit.promo && <span className="unit-promo">{unit.promo}</span>
+        )}
       </div>
       <div className="unit-card-body">
         <h3>Unit {unit.unitNo}</h3>
@@ -124,6 +147,11 @@ function UnitCard({ unit }: { unit: Unit }) {
           {unit.floor}
         </p>
         <p className="unit-card-price">{formatPeso(unit.price)}</p>
+        {onHold && (
+          <p className="unit-hold-note">
+            Reserved by another buyer and awaiting approval.
+          </p>
+        )}
       </div>
     </Link>
   );
