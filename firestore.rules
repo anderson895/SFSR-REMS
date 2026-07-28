@@ -1,0 +1,134 @@
+rules_version = '2';
+
+// Security rules for SFSR-REMS.
+//
+// Both the public Web Portal and the office-LAN Internal Management System hit
+// this same database, so these rules are the only thing separating a buyer from
+// staff functions. The Internal app being "local" is not a security boundary —
+// anyone can point a browser at Firestore directly.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- helpers ---------------------------------------------------------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function roleOf() {
+      return signedIn() ? profile().role : '';
+    }
+
+    function isStaff() {
+      return roleOf() in ['sales', 'documentation', 'admin'];
+    }
+
+    function isAdmin() {
+      return roleOf() == 'admin';
+    }
+
+    // Fields a buyer must never be able to set or change on their own record.
+    // Without this, a buyer could self-promote by writing role: 'admin'.
+    function keepsPrivilegedFields() {
+      return request.resource.data.role == resource.data.role
+          && request.resource.data.accountType == resource.data.accountType
+          && request.resource.data.active == resource.data.active;
+    }
+
+    // --- users -----------------------------------------------------------
+
+    match /users/{userId} {
+      allow read: if isStaff() || (signedIn() && request.auth.uid == userId);
+
+      // Self-registration: a new account may only ever be created as a buyer.
+      allow create: if signedIn()
+                    && request.auth.uid == userId
+                    && request.resource.data.role == 'buyer'
+                    && request.resource.data.accountType == 'initial'
+                    && request.resource.data.active == true;
+
+      // Buyers may edit their own profile but not their role or account type.
+      allow update: if (signedIn() && request.auth.uid == userId && keepsPrivilegedFields())
+                    || isStaff();
+
+      allow delete: if isAdmin();
+    }
+
+    // --- units -----------------------------------------------------------
+
+    match /units/{unitId} {
+      // Prospective buyers browse the catalogue without an account, which the
+      // study requires, so reads are public.
+      allow read: if true;
+
+      // The ONLY unit change a buyer may make is placing an available unit on
+      // hold as part of the reservation transaction. Everything else — marking
+      // a unit sold, releasing a hold, editing the price — is staff-only.
+      //
+      // Without this narrowing, any signed-in buyer could flip any unit to
+      // 'available' and reserve a property that was already sold.
+      function buyerPlacingHold() {
+        return resource.data.status == 'available'
+            && request.resource.data.status == 'on_hold'
+            && request.resource.data.heldBy is string
+            && request.resource.data.price == resource.data.price
+            && request.resource.data.unitNo == resource.data.unitNo;
+      }
+
+      allow update: if isStaff() || (signedIn() && buyerPlacingHold());
+
+      allow create, delete: if isStaff();
+    }
+
+    // --- reservations ----------------------------------------------------
+
+    match /reservations/{reservationId} {
+      allow read: if isStaff()
+                  || (signedIn() && resource.data.buyerUid == request.auth.uid);
+
+      // A buyer may only file a reservation in their own name.
+      allow create: if isStaff()
+                    || (signedIn()
+                        && request.resource.data.buyerUid == request.auth.uid
+                        && request.resource.data.status == 'pending');
+
+      // Approval, rejection, and cancellation are staff-only decisions.
+      allow update, delete: if isStaff();
+    }
+
+    // --- documents -------------------------------------------------------
+
+    match /documents/{documentId} {
+      allow read: if isStaff()
+                  || (signedIn() && resource.data.buyerUid == request.auth.uid);
+
+      allow create: if isStaff()
+                    || (signedIn()
+                        && request.resource.data.buyerUid == request.auth.uid
+                        && request.resource.data.status == 'pending');
+
+      // Buyers can re-run OCR on their own upload, but only staff may approve
+      // or reject a document.
+      allow update: if isStaff()
+                    || (signedIn()
+                        && resource.data.buyerUid == request.auth.uid
+                        && request.resource.data.status == resource.data.status);
+
+      allow delete: if isStaff();
+    }
+
+    // --- audit trail -----------------------------------------------------
+
+    match /auditLogs/{logId} {
+      allow read: if isStaff();
+      // Append-only: an audit trail that can be edited is not an audit trail.
+      allow create: if signedIn();
+      allow update, delete: if false;
+    }
+  }
+}

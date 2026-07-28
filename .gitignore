@@ -1,3 +1,26 @@
+# Secrets — both files hold raw Firebase/Cloudinary credentials. Keep both ignored.
 details.txt
+credentials.txt
+.env
+.env.local
+.env.*.local
+serviceAccountKey.json
 
+.claude
 
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Firebase
+.firebase/
+firebase-debug.log
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

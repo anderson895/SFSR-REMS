@@ -1,0 +1,29 @@
+{
+  "name": "sfsr-rems",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OCR-Based Real Estate Management System for St. Francis Square Realty Corporation",
+  "//": "SFSR-Portal and SFSR-Internal are independent projects with their own node_modules. This root package.json only holds maintenance scripts and shortcuts — it is NOT an npm workspace root.",
+  "scripts": {
+    "setup": "npm install && npm --prefix SFSR-Shared install && npm --prefix SFSR-Portal install && npm --prefix SFSR-Internal install",
+    "dev:portal": "npm --prefix SFSR-Portal run dev",
+    "dev:internal": "npm --prefix SFSR-Internal run dev",
+    "build:portal": "npm --prefix SFSR-Portal run build",
+    "build:internal": "npm --prefix SFSR-Internal run build",
+    "build": "npm run build:portal && npm run build:internal",
+    "typecheck": "npm --prefix SFSR-Shared run typecheck && npm --prefix SFSR-Portal run typecheck && npm --prefix SFSR-Internal run typecheck",
+    "migrate": "npm run deploy:rules && tsx scripts/migrate.ts",
+    "migrate:data": "tsx scripts/migrate.ts",
+    "seed": "tsx scripts/seedUnits.ts",
+    "check:algorithms": "tsx scripts/checkAlgorithms.ts",
+    "verify": "tsx --env-file=.env scripts/verify.ts",
+    "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes --project sfsr-rems",
+    "deploy:portal": "npm run build:portal && firebase deploy --only hosting --project sfsr-rems"
+  },
+  "devDependencies": {
+    "firebase": "^11.10.0",
+    "firebase-admin": "^14.2.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
