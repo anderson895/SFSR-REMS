@@ -157,6 +157,60 @@ service cloud.firestore {
       allow delete: if isStaff();
     }
 
+    // --- tripping requests -----------------------------------------------
+
+    match /trippingRequests/{trippingId} {
+      // The only collection an anonymous visitor may write to. A site visit is
+      // requested *before* anyone registers, so demanding an account here would
+      // turn away the leads the feature exists to capture.
+      //
+      // With no identity to check, the rules validate the shape instead: an
+      // exact field set (so no one can smuggle in extra data), types, lengths,
+      // and a status pinned to 'pending' so a visitor cannot file a booking
+      // that is already confirmed. This constrains what can be written, not how
+      // often — see the note in SETUP.md about rate limiting.
+      function validTripping() {
+        let d = request.resource.data;
+        return d.keys().hasOnly([
+                 'projectName', 'fullName', 'email', 'mobile', 'preferredDate',
+                 'preferredSlot', 'partySize', 'message', 'status',
+                 'requestedByUid', 'createdAt'
+               ])
+            && d.keys().hasAll([
+                 'projectName', 'fullName', 'email', 'mobile', 'preferredDate',
+                 'preferredSlot', 'partySize', 'status', 'requestedByUid',
+                 'createdAt'
+               ])
+            && d.status == 'pending'
+            && d.fullName is string && d.fullName.size() > 1
+               && d.fullName.size() <= 120
+            && d.email is string && d.email.size() <= 200
+               && d.email.matches('^[^@]+@[^@]+[.][^@]+$')
+            && d.mobile is string && d.mobile.size() >= 7
+               && d.mobile.size() <= 20
+            && d.projectName is string && d.projectName.size() <= 120
+            && d.preferredDate is string
+               && d.preferredDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && d.preferredSlot is string && d.preferredSlot.size() <= 40
+            && d.partySize is int && d.partySize >= 1 && d.partySize <= 10
+            && (!('message' in d)
+                || (d.message is string && d.message.size() <= 500))
+            // A signed-in visitor may only stamp their own uid on it.
+            && (d.requestedByUid == null
+                || d.requestedByUid == request.auth.uid);
+      }
+
+      allow create: if validTripping();
+
+      // Leads are commercially sensitive: staff see all, a signed-in visitor
+      // sees only the ones they filed, and nobody else reads them at all.
+      allow read: if isStaff()
+                  || (signedIn()
+                      && resource.data.requestedByUid == request.auth.uid);
+
+      allow update, delete: if isStaff();
+    }
+
     // --- audit trail -----------------------------------------------------
 
     match /auditLogs/{logId} {

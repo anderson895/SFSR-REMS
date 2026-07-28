@@ -6,6 +6,7 @@ import type {
   ReservationSource,
   ReservationStatus,
   Role,
+  TrippingStatus,
   UnitStatus,
   Verdict,
 } from './constants';
@@ -95,6 +96,35 @@ export interface Reservation {
   remarks?: string;
 }
 
+/**
+ * A request to visit a project on site. Collection: `trippingRequests/{id}`.
+ *
+ * Deliberately not tied to a unit or a user account. Tripping is what happens
+ * *before* someone commits — most people asking for one have not registered,
+ * and many are still choosing between developments.
+ */
+export interface TrippingRequest {
+  id: string;
+  projectName: string;
+  fullName: string;
+  email: string;
+  mobile: string;
+  /** ISO date, e.g. "2026-08-14". Stored as a string so the buyer's chosen
+   *  calendar day cannot be shifted by a timezone conversion. */
+  preferredDate: string;
+  /** One of TRIPPING_SLOTS. */
+  preferredSlot: string;
+  partySize: number;
+  message?: string;
+  status: TrippingStatus;
+  /** Set when the visitor happened to be signed in; null for a cold lead. */
+  requestedByUid: string | null;
+  createdAt: Timestamp;
+  handledBy?: string;
+  handledAt?: Timestamp;
+  staffNote?: string;
+}
+
 /** What OCR pulled out of a document image. */
 export interface OcrResult {
   rawText: string;
@@ -152,7 +182,7 @@ export interface AuditLog {
   actorUid: string;
   actorName: string;
   action: string;
-  targetType: 'unit' | 'reservation' | 'document' | 'user';
+  targetType: 'unit' | 'reservation' | 'document' | 'user' | 'tripping';
   targetId: string;
   at: Timestamp;
   meta?: Record<string, unknown>;

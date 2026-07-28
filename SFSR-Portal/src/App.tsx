@@ -9,6 +9,7 @@ import HomePage from './pages/HomePage';
 import HowItWorksPage from './pages/HowItWorksPage';
 import LoginPage from './pages/LoginPage';
 import ProjectsPage from './pages/ProjectsPage';
+import ScheduleTrippingPage from './pages/ScheduleTrippingPage';
 import MyReservationsPage from './pages/MyReservationsPage';
 import ProfilePage from './pages/ProfilePage';
 import RegisterPage from './pages/RegisterPage';
@@ -25,13 +26,20 @@ import UnitsPage from './pages/UnitsPage';
  */
 export default function App() {
   return (
-    <div className="app">
+    <div className="flex min-h-screen flex-col">
       <TopBar />
-      <main className="content">
+      {/* Most pages sit in a centred column. A page that needs the full width
+          says so with `data-fullbleed`, which is checked here rather than the
+          shell keeping its own list of edge-to-edge routes. */}
+      <main
+        className="mx-auto w-full max-w-[1100px] flex-1 px-6 py-8
+                   has-[[data-fullbleed]]:max-w-none has-[[data-fullbleed]]:p-0"
+      >
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/how-it-works" element={<HowItWorksPage />} />
+          <Route path="/schedule-tripping" element={<ScheduleTrippingPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/units" element={<UnitsPage />} />
@@ -73,7 +81,7 @@ export default function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
-      <footer className="footer">
+      <footer className="border-t border-line px-6 py-4 text-center text-sm text-gray-500">
         St. Francis Square Realty Corporation &middot; SFSR-REMS
       </footer>
     </div>
@@ -84,7 +92,6 @@ export default function App() {
 const NAV_LINKS = [
   { to: '/', label: 'Home', end: true },
   { to: '/projects', label: 'Projects' },
-  { to: '/units', label: 'Available Units' },
   { to: '/how-it-works', label: 'How It Works' },
   { to: '/about', label: 'About Us' },
   { to: '/contact', label: 'Contact Us' },
@@ -94,36 +101,53 @@ function TopBar() {
   const { user, profile, loading } = useAuth();
 
   return (
-    <header className="topbar">
-      <Link to="/" className="brand">
+    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-7 py-3">
+      <Link to="/" className="flex items-center gap-3 no-underline">
+        {/* The mark is a tall 71x128 glyph cropped to its ink, so height drives
+            the size and the width follows. */}
         <img
-          src="/logo.jpg"
+          src="/logo.png"
           alt="St. Francis Square Realty"
-          className="brand-logo"
+          className="h-10 w-auto object-contain"
         />
-        <span className="brand-text">
-          St. Francis Square Realty
-          <small>Real Estate Management System</small>
+        <span className="flex flex-col leading-tight">
+          <span className="font-bold text-brand">St. Francis Square Realty</span>
+          <span className="text-[0.62rem] font-medium uppercase tracking-[0.08em] text-gray-500">
+            Real Estate Portal
+          </span>
         </span>
       </Link>
 
-      <nav className="topnav">
+      {/* order-3 + w-full drops the nav to its own line once the bar wraps,
+          rather than letting it squeeze the brand and the account button. */}
+      <nav className="order-3 flex w-full items-center gap-6 overflow-x-auto lg:order-none lg:w-auto">
         {NAV_LINKS.map((link) => (
           <NavLink
             key={link.to}
             to={link.to}
             end={link.end}
-            className={({ isActive }) => (isActive ? 'is-active' : undefined)}
+            className={({ isActive }) =>
+              `whitespace-nowrap border-b-2 py-1.5 text-sm no-underline ${
+                isActive
+                  ? 'border-brand font-semibold text-brand'
+                  : 'border-transparent text-ink hover:text-brand'
+              }`
+            }
           >
             {link.label}
           </NavLink>
         ))}
       </nav>
 
-      <div className="topbar-account">
+      <div className="flex items-center gap-4">
         {loading ? null : user ? (
           <>
-            <NavLink to="/reservations">My Reservations</NavLink>
+            <NavLink
+              to="/reservations"
+              className="whitespace-nowrap text-sm text-ink no-underline hover:text-brand"
+            >
+              My Reservations
+            </NavLink>
             <Link to="/profile" className="btn btn-brand">
               <UserCircleIcon className="icon" />
               {profile?.firstName ?? 'My profile'}
@@ -149,10 +173,13 @@ function TopBar() {
 
 function NotFound() {
   return (
-    <div className="notice">
-      <h2>Page not found</h2>
-      <p>
-        The page you are looking for does not exist. <Link to="/">Go home</Link>
+    <div className="card p-8 text-center">
+      <h2 className="mt-0 text-xl font-semibold">Page not found</h2>
+      <p className="text-gray-500">
+        The page you are looking for does not exist.{' '}
+        <Link to="/" className="font-semibold text-brand">
+          Go home
+        </Link>
       </p>
     </div>
   );

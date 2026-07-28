@@ -26,6 +26,30 @@ export const ReservationStatus = {
 export type ReservationStatus =
   (typeof ReservationStatus)[keyof typeof ReservationStatus];
 
+/**
+ * Lifecycle of a site-visit ("tripping") request.
+ *
+ * Separate from ReservationStatus on purpose: a tripping is an enquiry, not an
+ * application for a unit. Nobody is held, nothing is reserved, and a declined
+ * tripping has none of the consequences a rejected reservation does.
+ */
+export const TrippingStatus = {
+  PENDING: 'pending',
+  CONFIRMED: 'confirmed',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
+} as const;
+export type TrippingStatus =
+  (typeof TrippingStatus)[keyof typeof TrippingStatus];
+
+/** Time bands the sales office accepts site visits in. */
+export const TRIPPING_SLOTS = [
+  '09:00 AM – 11:00 AM',
+  '11:00 AM – 01:00 PM',
+  '01:00 PM – 03:00 PM',
+  '03:00 PM – 05:00 PM',
+] as const;
+
 /** Where a reservation originated. */
 export const ReservationSource = {
   ONLINE: 'online',

@@ -20,6 +20,9 @@ export type AuditAction =
   | 'document.approved'
   | 'document.rejected'
   | 'document.rescanned'
+  | 'tripping.confirmed'
+  | 'tripping.completed'
+  | 'tripping.cancelled'
   | 'unit.status_changed'
   | 'user.created'
   | 'user.signed_in';

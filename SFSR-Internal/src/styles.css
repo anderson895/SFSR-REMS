@@ -45,14 +45,13 @@ body {
 }
 
 .brand-logo {
-  /* `contain` with an auto width, never `cover` on a square box: the logo is a
-     wide lockup (2048x1582) and cover crops the wordmark off both sides. */
+  /* The mark is a tall 71x128 glyph cropped to its ink, so height drives the
+     size and the width follows. No white plate behind it — the PNG is
+     transparent and sits straight on the bar; a plate would show as a white
+     box on the navy. */
   height: 34px;
   width: auto;
   object-fit: contain;
-  background: #fff;
-  border-radius: 4px;
-  padding: 2px 5px;
 }
 
 .brand-text {
@@ -184,9 +183,10 @@ body {
 }
 
 .login-logo {
-  width: 200px;
-  max-width: 100%;
-  height: auto;
+  /* Height-driven, not width: the mark is portrait, and a 200px width would
+     make it 360px tall and swamp the sign-in card. */
+  height: 84px;
+  width: auto;
   object-fit: contain;
   margin-bottom: 1rem;
 }
@@ -546,10 +546,55 @@ select:focus {
 }
 
 .status-reserved,
-.status-sold {
+.status-sold,
+.status-res-confirmed {
   background: #eef2ff;
   color: #3730a3;
   border: 1px solid #c7d2fe;
+}
+
+.status-res-completed {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+/* --- filter tabs --- */
+
+.tab-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.tab {
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--navy);
+}
+
+.tab.is-active {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+  font-weight: 600;
 }
 
 .status-res-rejected,

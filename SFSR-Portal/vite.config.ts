@@ -1,8 +1,11 @@
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  plugins: [react()],
+  // Tailwind v4 needs no config file and no content globs — the Vite plugin
+  // scans the module graph it is already building.
+  plugins: [react(), tailwindcss()],
 
   // Both projects read the single .env one level up, so the Firebase project
   // and Cloudinary settings are configured in exactly one place. The apps are

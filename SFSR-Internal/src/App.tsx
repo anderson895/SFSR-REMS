@@ -6,6 +6,7 @@ import AuditTrailPage from './pages/AuditTrailPage';
 import ReservationDetailPage from './pages/ReservationDetailPage';
 import ReservationsPage from './pages/ReservationsPage';
 import StaffLoginPage from './pages/StaffLoginPage';
+import TrippingPage from './pages/TrippingPage';
 import UserManagementPage from './pages/UserManagementPage';
 import WalkInReservationPage from './pages/WalkInReservationPage';
 
@@ -61,6 +62,14 @@ export default function App() {
               }
             />
             <Route
+              path="/tripping"
+              element={
+                <RequireStaff>
+                  <TrippingPage />
+                </RequireStaff>
+              }
+            />
+            <Route
               path="/audit"
               element={
                 <RequireStaff allow={[Role.ADMIN]}>
@@ -91,7 +100,7 @@ function TopBar() {
   return (
     <header className="topbar">
       <Link to="/" className="brand">
-        <img src="/logo.jpg" alt="SFSR" className="brand-logo" />
+        <img src="/logo.png" alt="SFSR" className="brand-logo" />
         <span className="brand-text">
           SFSR
           <small>Internal Management System</small>
@@ -126,6 +135,7 @@ function SideNav() {
         Dashboard
       </NavLink>
       <NavLink to="/reservations">Reservations</NavLink>
+      <NavLink to="/tripping">Site Visits</NavLink>
       {profile?.role === Role.ADMIN && (
         <>
           <NavLink to="/audit">Audit trail</NavLink>

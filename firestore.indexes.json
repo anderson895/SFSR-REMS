@@ -31,6 +31,14 @@
         { "fieldPath": "reservationId", "order": "ASCENDING" },
         { "fieldPath": "uploadedAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "trippingRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "preferredDate", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

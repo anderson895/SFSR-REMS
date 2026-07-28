@@ -50,4 +50,5 @@ export const COLLECTIONS = {
   RESERVATIONS: 'reservations',
   DOCUMENTS: 'documents',
   AUDIT_LOGS: 'auditLogs',
+  TRIPPING: 'trippingRequests',
 } as const;

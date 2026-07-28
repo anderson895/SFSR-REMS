@@ -10,6 +10,7 @@ export * from './audit';
 export * from './authService';
 export * from './documents';
 export * from './reservations';
+export * from './tripping';
 export * from './ui/DocumentUploader';
 export * from './ui/ValidationPanel';
 export * from './ui/useDocumentAnalysis';

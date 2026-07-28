@@ -38,7 +38,7 @@ export default function StaffLoginPage() {
   return (
     <div className="login-shell">
       <div className="form-card">
-        <img src="/logo.jpg" alt="" className="login-logo" />
+        <img src="/logo.png" alt="" className="login-logo" />
         <h1>Internal Management System</h1>
         <p className="form-sub">Authorized personnel only.</p>
 

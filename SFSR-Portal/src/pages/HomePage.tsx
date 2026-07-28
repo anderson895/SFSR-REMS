@@ -59,37 +59,43 @@ export default function HomePage() {
   }
 
   return (
-    <div className="home">
+    // data-fullbleed tells the shell to drop its centred column for this page.
+    <div data-fullbleed>
       {/* ------------------------------------------------------------ hero */}
-      <section className="hero">
-        <div className="hero-inner">
-          <div className="hero-copy">
-            <h1>Find Your Perfect Home.</h1>
-            <p>
+      <section className="bg-[linear-gradient(rgba(23,51,31,0.55),rgba(23,51,31,0.35)),url('/hero.jpg')] bg-cover bg-center px-6 pb-24 pt-18 text-white">
+        <div className="mx-auto flex max-w-[1180px] flex-col items-start justify-between gap-10 lg:flex-row">
+          <div className="max-w-[34rem] pt-6">
+            <h1 className="text-[clamp(2.1rem,4.6vw,3.4rem)] font-bold leading-[1.1] tracking-tight [text-shadow:0_2px_12px_rgba(0,0,0,0.35)]">
+              Find Your Perfect Home.
+            </h1>
+            <p className="mb-8 mt-4 max-w-[34ch] leading-relaxed [text-shadow:0_1px_8px_rgba(0,0,0,0.4)]">
               Explore our quality condominium projects and reserve your dream
               unit online.
             </p>
-            <div className="hero-actions">
+            <div className="flex flex-wrap gap-3.5">
               <Link to="/projects" className="btn btn-brand">
                 Browse Projects
               </Link>
-              <Link to="/units" className="btn btn-on-photo">
-                View Available Units
+              <Link to="/schedule-tripping" className="btn btn-on-photo">
+                <CalendarDaysIcon className="icon" />
+                Schedule Tripping
               </Link>
             </div>
           </div>
 
-          <aside className="why-card">
-            <h2>Why Choose Us?</h2>
-            <ul>
+          <aside className="w-full shrink-0 rounded-xl bg-white/96 p-6 text-ink shadow-2xl lg:w-80">
+            <h2 className="mb-4 text-base font-semibold">Why Choose Us?</h2>
+            <ul className="grid gap-4">
               {WHY_US.map(({ Icon, title, body }) => (
-                <li key={title}>
-                  <span className="why-icon">
+                <li key={title} className="flex items-start gap-3">
+                  <span className="mt-0.5 text-brand">
                     <Icon className="icon" />
                   </span>
                   <div>
-                    <strong>{title}</strong>
-                    <p>{body}</p>
+                    <strong className="block text-[0.88rem]">{title}</strong>
+                    <p className="mt-0.5 text-xs leading-snug text-gray-500">
+                      {body}
+                    </p>
                   </div>
                 </li>
               ))}
@@ -98,11 +104,18 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ---------------------------------------------------- search panel */}
-      <form className="unit-search" onSubmit={handleSearch}>
-        <span className="unit-search-label">Find Your Ideal Unit</span>
+      {/* Pulled up over the hero's lower edge, as in the reference design. */}
+      <form
+        className="relative z-10 mx-auto -mt-13 flex w-[calc(100%-3rem)] max-w-[1180px] flex-wrap items-center gap-3 rounded-xl bg-brand px-5 py-4 shadow-xl"
+        onSubmit={handleSearch}
+      >
+        <span className="pr-2 font-semibold text-white">Find Your Ideal Unit</span>
 
-        <select value={project} onChange={(e) => setProject(e.target.value)}>
+        <select
+          value={project}
+          onChange={(e) => setProject(e.target.value)}
+          className="min-w-36 flex-1 rounded-md border border-transparent bg-white px-3 py-2.5 text-sm text-ink"
+        >
           <option value={ANY}>All Projects</option>
           {projects.map((p) => (
             <option key={p.name} value={p.name}>
@@ -111,7 +124,11 @@ export default function HomePage() {
           ))}
         </select>
 
-        <select value={type} onChange={(e) => setType(e.target.value)}>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="min-w-36 flex-1 rounded-md border border-transparent bg-white px-3 py-2.5 text-sm text-ink"
+        >
           <option value={ANY}>Unit Type</option>
           {types.map((t) => (
             <option key={t} value={t}>
@@ -125,39 +142,46 @@ export default function HomePage() {
           placeholder="Min. Price"
           value={minPrice}
           onChange={(e) => setMinPrice(e.target.value)}
+          className="min-w-36 flex-1 rounded-md border border-transparent bg-white px-3 py-2.5 text-sm text-ink"
         />
         <input
           type="number"
           placeholder="Max. Price"
           value={maxPrice}
           onChange={(e) => setMaxPrice(e.target.value)}
+          className="min-w-36 flex-1 rounded-md border border-transparent bg-white px-3 py-2.5 text-sm text-ink"
         />
 
-        <button type="submit" className="btn btn-accent">
+        <button type="submit" className="btn btn-accent shrink-0 px-6 py-2.5">
           Search Units
         </button>
       </form>
 
       {!loading && units.length > 0 && (
-        <p className="hero-stat">
-          <strong>{units.length}</strong> units available today &middot; starting
-          at <strong>{formatPesoShort(startingPrice)}</strong>
+        <p className="mx-auto mt-4 w-[calc(100%-3rem)] max-w-[1180px] text-sm text-gray-500">
+          <strong className="text-brand">{units.length}</strong> units available
+          today &middot; starting at{' '}
+          <strong className="text-brand">
+            {formatPesoShort(startingPrice)}
+          </strong>
         </p>
       )}
 
       {/* ------------------------------------------- steps + featured split */}
-      <div className="home-split">
-        <section className="steps-col">
-          <h2>Simple Steps to Reserve</h2>
-          <ol className="step-row">
+      <div className="mx-auto grid w-[calc(100%-3rem)] max-w-[1180px] items-start gap-10 py-12 lg:grid-cols-[5fr_7fr]">
+        <section>
+          <h2 className="mb-6 text-xl font-semibold">Simple Steps to Reserve</h2>
+          <ol className="mb-6 grid grid-cols-2 gap-4 text-center sm:grid-cols-4">
             {STEPS.map(({ Icon, title, body }, index) => (
-              <li key={title}>
-                <span className="step-icon">
-                  <Icon className="icon" />
-                  <span className="step-badge">{index + 1}</span>
+              <li key={title} className="flex flex-col items-center">
+                <span className="relative mb-3 inline-flex size-14 items-center justify-center rounded-full bg-brand-tint text-brand">
+                  <Icon className="size-6" />
+                  <span className="absolute -left-1 -top-1 flex size-6 items-center justify-center rounded-full bg-brand text-[0.72rem] font-bold text-white">
+                    {index + 1}
+                  </span>
                 </span>
-                <strong>{title}</strong>
-                <p>{body}</p>
+                <strong className="text-[0.82rem] leading-tight">{title}</strong>
+                <p className="mt-1 text-xs leading-snug text-gray-500">{body}</p>
               </li>
             ))}
           </ol>
@@ -166,10 +190,13 @@ export default function HomePage() {
           </Link>
         </section>
 
-        <section className="featured-col">
-          <header className="section-head-row">
-            <h2>Featured Projects</h2>
-            <Link to="/projects" className="text-link">
+        <section>
+          <header className="flex items-baseline justify-between gap-4">
+            <h2 className="mb-6 text-xl font-semibold">Featured Projects</h2>
+            <Link
+              to="/projects"
+              className="whitespace-nowrap text-sm font-semibold text-brand no-underline hover:text-accent"
+            >
               View All Projects &rarr;
             </Link>
           </header>
@@ -178,15 +205,15 @@ export default function HomePage() {
       </div>
 
       {/* -------------------------------------------------- assurance strip */}
-      <section className="assurance">
+      <section className="card mx-auto mb-12 grid w-[calc(100%-3rem)] max-w-[1180px] gap-5 px-6 py-5 sm:grid-cols-2">
         {ASSURANCES.map(({ Icon, title, body }) => (
-          <div key={title}>
-            <span className="assurance-icon">
+          <div key={title} className="flex items-center gap-3.5">
+            <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-brand-tint text-brand">
               <Icon className="icon" />
             </span>
             <div>
-              <strong>{title}</strong>
-              <p>{body}</p>
+              <strong className="text-sm">{title}</strong>
+              <p className="mt-0.5 text-xs text-gray-500">{body}</p>
             </div>
           </div>
         ))}
@@ -213,38 +240,56 @@ function ProjectCarousel() {
     });
   }
 
-  if (loading) return <p className="loading">Loading projects…</p>;
-
-  if (projects.length === 0) {
-    return <p className="hint">No projects are listed yet.</p>;
+  if (loading) {
+    return <p className="py-8 text-center text-gray-500">Loading projects…</p>;
   }
 
+  if (projects.length === 0) {
+    return <p className="text-sm text-gray-500">No projects are listed yet.</p>;
+  }
+
+  const arrow =
+    'size-8 shrink-0 cursor-pointer rounded-full border border-line bg-white text-xl leading-none text-brand hover:bg-brand-tint';
+
   return (
-    <div className="carousel">
+    <div className="flex items-center gap-2">
       <button
         type="button"
-        className="carousel-arrow"
+        className={arrow}
         aria-label="Previous projects"
         onClick={() => scrollBy(-1)}
       >
         &#8249;
       </button>
 
-      <div className="carousel-track" ref={track}>
+      {/* scrollbar-none keeps the strip clean; the arrows and native swipe are
+          the affordances. */}
+      <div
+        className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-1 scrollbar-none"
+        ref={track}
+      >
         {projects.map((p) => (
           <Link
             key={p.name}
             to={`/units?project=${encodeURIComponent(p.name)}`}
-            className="project-card"
+            className="card w-46 shrink-0 snap-start overflow-hidden no-underline transition hover:-translate-y-0.5 hover:shadow-lg"
           >
-            <div className="project-card-media">
-              {p.image && <img src={p.image} alt={p.name} />}
+            <div className="h-30 bg-brand-tint">
+              {p.image && (
+                <img
+                  src={p.image}
+                  alt={p.name}
+                  className="size-full object-cover"
+                />
+              )}
             </div>
-            <div className="project-card-body">
-              <strong>{p.name}</strong>
-              <p className="project-card-loc">{p.location}</p>
-              <p className="project-card-from">Price starts at</p>
-              <p className="project-card-price">
+            <div className="px-3 pb-3.5 pt-2.5">
+              <strong className="block text-[0.85rem] leading-tight">
+                {p.name}
+              </strong>
+              <p className="mb-2 mt-0.5 text-xs text-gray-500">{p.location}</p>
+              <p className="text-[0.68rem] text-gray-500">Price starts at</p>
+              <p className="mt-0.5 text-lg font-bold text-brand">
                 {formatPesoShort(p.startingPrice)}
               </p>
             </div>
@@ -254,7 +299,7 @@ function ProjectCarousel() {
 
       <button
         type="button"
-        className="carousel-arrow"
+        className={arrow}
         aria-label="Next projects"
         onClick={() => scrollBy(1)}
       >
