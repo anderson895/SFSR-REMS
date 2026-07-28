@@ -6,7 +6,7 @@
  * OCR routinely mangles a character or two in a heading.
  */
 
-import { DocType } from './constants';
+import { DocType, IdType } from './constants';
 import { normalizeText, similarityRatio } from './levenshtein';
 
 export interface DocPattern {
@@ -173,6 +173,169 @@ export const DOC_PATTERNS: DocPattern[] = [
 ];
 
 /**
+ * Keyword signatures for individual government IDs.
+ *
+ * `DOC_PATTERNS` answers "is this an ID at all?". This answers "*which* ID is
+ * it?", which is a harder question: every card here says REPUBLIC OF THE
+ * PHILIPPINES and carries a name, a photo and a signature. Only the issuing
+ * authority and the card's own field labels tell them apart, so those are the
+ * only things listed below — shared furniture would score every card equally
+ * and discriminate nothing.
+ *
+ * Keywords are kept long on purpose. `containsFuzzy` slides a window the
+ * length of the phrase, so a three-letter needle like "TIN" matches inside
+ * "PRINTING" and a short one like "PWD" inside any similar trigram. Nothing
+ * here is shorter than `MIN_KEYWORD_LENGTH`, and `scoreIdType` drops anything
+ * that is, so a well-meaning future addition cannot quietly poison the scores.
+ */
+export interface IdPattern {
+  idType: IdType;
+  primary: string[];
+  secondary: string[];
+}
+
+/** Below this a fuzzy window match is noise rather than evidence. */
+export const MIN_KEYWORD_LENGTH = 6;
+
+export const ID_PATTERNS: IdPattern[] = [
+  {
+    idType: IdType.PHILSYS,
+    primary: [
+      'PHILIPPINE IDENTIFICATION CARD',
+      'PAMBANSANG PAGKAKAKILANLAN',
+      'PHILSYS CARD NUMBER',
+      'PHILSYS',
+    ],
+    // The PhilSys card labels its fields in Filipino, which no other ID does.
+    secondary: [
+      'APELYIDO',
+      'MGA PANGALAN',
+      'PETSA NG KAPANGANAKAN',
+      'TIRAHAN',
+      'KASARIAN',
+    ],
+  },
+  {
+    idType: IdType.PASSPORT,
+    primary: [
+      'PASAPORTE',
+      'DEPARTMENT OF FOREIGN AFFAIRS',
+      'PASSPORT NO',
+      'KAGAWARAN NG UGNAYANG PANLABAS',
+    ],
+    secondary: [
+      'PLACE OF ISSUE',
+      'DATE OF ISSUE',
+      'ISSUING AUTHORITY',
+      'PLACE OF BIRTH',
+      'DATE OF EXPIRY',
+    ],
+  },
+  {
+    idType: IdType.DRIVERS_LICENSE,
+    primary: [
+      'DRIVERS LICENSE',
+      'LAND TRANSPORTATION OFFICE',
+      'NON PROFESSIONAL',
+    ],
+    secondary: [
+      'AGENCY CODE',
+      'RESTRICTIONS',
+      'CONDITIONS',
+      'LICENSE NO',
+      'BLOOD TYPE',
+      'EYES COLOR',
+    ],
+  },
+  {
+    idType: IdType.UMID,
+    primary: [
+      'UNIFIED MULTI PURPOSE',
+      'SOCIAL SECURITY SYSTEM',
+      'GOVERNMENT SERVICE INSURANCE SYSTEM',
+    ],
+    secondary: ['COMMON REFERENCE NUMBER', 'PAG IBIG', 'CRN NO'],
+  },
+  {
+    idType: IdType.PRC_ID,
+    primary: [
+      'PROFESSIONAL REGULATION COMMISSION',
+      'PROFESSIONAL IDENTIFICATION CARD',
+    ],
+    secondary: [
+      'REGISTRATION NO',
+      'VALID UNTIL',
+      'PROFESSION',
+      'LICENSE NUMBER',
+    ],
+  },
+  {
+    idType: IdType.POSTAL_ID,
+    primary: [
+      'POSTAL IDENTITY CARD',
+      'PHILIPPINE POSTAL CORPORATION',
+      'PHLPOST',
+    ],
+    secondary: ['POSTAL ID', 'POSTAL REFERENCE NUMBER'],
+  },
+  {
+    idType: IdType.VOTERS_ID,
+    primary: [
+      'VOTERS IDENTIFICATION CARD',
+      'COMMISSION ON ELECTIONS',
+      'COMELEC',
+    ],
+    secondary: [
+      'PRECINCT NO',
+      'VOTERS IDENTIFICATION NUMBER',
+      'CITY MUNICIPALITY',
+    ],
+  },
+
+  // --- recognised so they can be named when refused, never offered ---------
+  {
+    idType: IdType.PHILHEALTH,
+    primary: [
+      'PHILIPPINE HEALTH INSURANCE CORPORATION',
+      'PHILHEALTH',
+      'PHILHEALTH IDENTIFICATION NUMBER',
+    ],
+    secondary: ['MEMBER SINCE', 'PHILHEALTH NO'],
+  },
+  {
+    idType: IdType.TIN_ID,
+    primary: ['TAXPAYER IDENTIFICATION NUMBER', 'BUREAU OF INTERNAL REVENUE'],
+    secondary: ['REVENUE DISTRICT', 'TAXPAYER NAME'],
+  },
+  {
+    idType: IdType.SENIOR_CITIZEN,
+    primary: [
+      'SENIOR CITIZEN IDENTIFICATION CARD',
+      'OFFICE FOR SENIOR CITIZENS AFFAIRS',
+      'SENIOR CITIZEN',
+    ],
+    secondary: ['OSCA ID', 'DATE ISSUED'],
+  },
+  {
+    idType: IdType.PWD_ID,
+    primary: [
+      'PERSON WITH DISABILITY',
+      'NATIONAL COUNCIL ON DISABILITY AFFAIRS',
+    ],
+    secondary: ['TYPE OF DISABILITY', 'PWD ID NO'],
+  },
+  {
+    idType: IdType.BARANGAY_ID,
+    primary: [
+      'BARANGAY IDENTIFICATION CARD',
+      'BARANGAY CLEARANCE',
+      'OFFICE OF THE BARANGAY',
+    ],
+    secondary: ['PUNONG BARANGAY', 'BARANGAY CAPTAIN'],
+  },
+];
+
+/**
  * Fuzzy keyword search: is `phrase` present anywhere in `text`?
  *
  * A plain `includes` check fails the moment OCR turns "OFFICIAL RECEIPT" into
@@ -239,6 +402,63 @@ export function scoreDocumentType(rawText: string): TypeScore[] {
 
     return {
       docType,
+      score: Number((primaryScore + secondaryScore).toFixed(3)),
+      matchedKeywords,
+    };
+  });
+
+  return scores.sort((a, b) => b.score - a.score);
+}
+
+export interface IdScore {
+  idType: IdType;
+  score: number;
+  matchedKeywords: string[];
+}
+
+/**
+ * Scores OCR text against every known government ID.
+ *
+ * Same weighting as `scoreDocumentType` so the two stages read consistently:
+ * one primary hit reaches 0.6, secondary hits top up the rest. Sorted
+ * best-first.
+ *
+ * Phrases below `MIN_KEYWORD_LENGTH` are skipped rather than trusted. A short
+ * needle passed to `containsFuzzy` matches almost any text of that length, so
+ * including one would hand a card a primary hit it never earned — and because
+ * a single primary hit clears the acceptance bar on its own, that one mistake
+ * would be enough to accept the wrong ID.
+ */
+export function scoreIdType(rawText: string): IdScore[] {
+  const text = normalizeText(rawText);
+
+  const usable = (phrases: string[]) =>
+    phrases.filter((p) => normalizeText(p).length >= MIN_KEYWORD_LENGTH);
+
+  const scores = ID_PATTERNS.map(({ idType, primary, secondary }) => {
+    const matchedKeywords: string[] = [];
+
+    let primaryHits = 0;
+    for (const phrase of usable(primary)) {
+      if (containsFuzzy(text, phrase)) {
+        primaryHits++;
+        matchedKeywords.push(phrase);
+      }
+    }
+
+    let secondaryHits = 0;
+    for (const phrase of usable(secondary)) {
+      if (containsFuzzy(text, phrase)) {
+        secondaryHits++;
+        matchedKeywords.push(phrase);
+      }
+    }
+
+    const primaryScore = Math.min(1, primaryHits) * 0.6;
+    const secondaryScore = Math.min(1, secondaryHits / 3) * 0.4;
+
+    return {
+      idType,
       score: Number((primaryScore + secondaryScore).toFixed(3)),
       matchedKeywords,
     };

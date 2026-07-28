@@ -39,7 +39,17 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/how-it-works" element={<HowItWorksPage />} />
-          <Route path="/schedule-tripping" element={<ScheduleTrippingPage />} />
+          {/* Sign-in required. A site visit commits staff time and a car, so
+              it is worth an account — and pinning every request to a real uid
+              is what lets firestore.rules close the anonymous write path. */}
+          <Route
+            path="/schedule-tripping"
+            element={
+              <RequireBuyer>
+                <ScheduleTrippingPage />
+              </RequireBuyer>
+            }
+          />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/units" element={<UnitsPage />} />

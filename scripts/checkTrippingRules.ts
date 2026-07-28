@@ -3,12 +3,13 @@
  *
  *   npx tsx scripts/checkTrippingRules.ts
  *
- * `trippingRequests` is the only collection an unauthenticated client may
- * write to. That is a deliberate trade — leads arrive before accounts do — but
- * it means the rules are the entire defence, so they get tested rather than
- * trusted. Each case runs on its own Firebase app: a write the rules reject
- * stays in that client's retry queue and poisons every later call on the same
- * instance.
+ * Site visits require a signed-in buyer, and the rules also constrain the
+ * shape of what that buyer may write. Both halves are checked here: an
+ * anonymous client must be refused outright, and a signed-in one must still be
+ * unable to self-confirm, claim another account, or smuggle in extra fields.
+ *
+ * Each case runs on its own Firebase app — a write the rules reject stays in
+ * that client's retry queue and poisons every later call on the same instance.
  *
  * Cleans up anything it manages to create.
  */
@@ -20,6 +21,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   getFirestore,
   limit,
@@ -49,6 +51,20 @@ function freshApp(): { app: FirebaseApp; db: Firestore } {
   return { app, db: getFirestore(app) };
 }
 
+async function signedInAs(
+  name: string,
+  email: string,
+  password: string,
+): Promise<{ app: FirebaseApp; db: Firestore; uid: string }> {
+  const app = initializeApp(CONFIG, `${name}-${appSeq++}`);
+  const credential = await signInWithEmailAndPassword(
+    getAuth(app),
+    email,
+    password,
+  );
+  return { app, db: getFirestore(app), uid: credential.user.uid };
+}
+
 function report(passed: boolean, label: string, detail = '') {
   console.log(
     `  ${passed ? 'PASS' : 'FAIL'}  ${label}${detail ? ` — ${detail}` : ''}`,
@@ -56,8 +72,10 @@ function report(passed: boolean, label: string, detail = '') {
   if (!passed) failures++;
 }
 
-/** A request that should be accepted from anyone. */
-function validPayload() {
+const BUYER = { email: 'juan.delacruz@sfsr.test', password: 'Buyer@2026' };
+
+/** A request that should be accepted from the signed-in owner. */
+function validPayload(uid: string) {
   return {
     projectName: 'The Legaspi Place',
     fullName: 'Rules Probe',
@@ -68,21 +86,32 @@ function validPayload() {
     partySize: 2,
     message: 'automated rule check',
     status: 'pending',
-    requestedByUid: null,
+    requestedByUid: uid,
     createdAt: serverTimestamp(),
   };
 }
 
+/**
+ * @param as 'buyer' signs in first; 'anon' stays unauthenticated.
+ */
 async function expectWrite(
   label: string,
   payload: Record<string, unknown>,
   shouldSucceed: boolean,
+  as: 'buyer' | 'anon' = 'buyer',
 ) {
   const { app, db } = freshApp();
   let ok = false;
   let detail = '';
 
   try {
+    if (as === 'buyer') {
+      await signInWithEmailAndPassword(
+        getAuth(app),
+        BUYER.email,
+        BUYER.password,
+      );
+    }
     const ref = await addDoc(collection(db, 'trippingRequests'), payload);
     created.push(ref.id);
     ok = true;
@@ -98,53 +127,74 @@ async function expectWrite(
 async function main() {
   console.log('\nTripping rule checks\n');
 
+  // The signed-in buyer's uid is needed to build a payload that should pass.
+  const owner = await signedInAs('owner', BUYER.email, BUYER.password);
+  const uid = owner.uid;
+  await deleteApp(owner.app).catch(() => {});
+
+  // --- authentication is required ----------------------------------------
+  await expectWrite(
+    'a signed-out visitor CANNOT file a request',
+    validPayload(uid),
+    false,
+    'anon',
+  );
+
   // --- the intended case --------------------------------------------------
   await expectWrite(
-    'a signed-out visitor CAN file a valid request',
-    validPayload(),
+    'a signed-in buyer CAN file a valid request',
+    validPayload(uid),
     true,
   );
 
-  // --- shape attacks ------------------------------------------------------
+  // --- shape attacks, all as a legitimately signed-in buyer ---------------
   await expectWrite(
     'cannot self-confirm (status must be pending)',
-    { ...validPayload(), status: 'confirmed' },
+    { ...validPayload(uid), status: 'confirmed' },
     false,
   );
 
   await expectWrite(
     'cannot smuggle in extra fields',
-    { ...validPayload(), isVip: true, internalNote: 'x' },
+    { ...validPayload(uid), isVip: true, internalNote: 'x' },
     false,
   );
 
   await expectWrite(
-    'cannot claim another account (requestedByUid)',
-    { ...validPayload(), requestedByUid: 'someone-elses-uid' },
+    'cannot file on behalf of another account',
+    { ...validPayload(uid), requestedByUid: 'someone-elses-uid' },
+    false,
+  );
+
+  // The old rules allowed a null uid for anonymous leads. They no longer do,
+  // and this is the case that would silently pass if that clause came back.
+  await expectWrite(
+    'cannot leave the request unowned (null uid)',
+    { ...validPayload(uid), requestedByUid: null },
     false,
   );
 
   await expectWrite(
     'rejects a malformed date',
-    { ...validPayload(), preferredDate: 'next tuesday' },
+    { ...validPayload(uid), preferredDate: 'next tuesday' },
     false,
   );
 
   await expectWrite(
     'rejects a malformed email',
-    { ...validPayload(), email: 'not-an-email' },
+    { ...validPayload(uid), email: 'not-an-email' },
     false,
   );
 
   await expectWrite(
     'rejects an oversized message',
-    { ...validPayload(), message: 'x'.repeat(501) },
+    { ...validPayload(uid), message: 'x'.repeat(501) },
     false,
   );
 
   await expectWrite(
     'rejects an implausible party size',
-    { ...validPayload(), partySize: 500 },
+    { ...validPayload(uid), partySize: 500 },
     false,
   );
 
@@ -167,15 +217,10 @@ async function main() {
 
   // --- a buyer must not be able to confirm their own visit -----------------
   if (created.length > 0) {
-    const { app, db } = freshApp();
+    const { app, db } = await signedInAs('owner2', BUYER.email, BUYER.password);
     let blocked = false;
     let detail = '';
     try {
-      await signInWithEmailAndPassword(
-        getAuth(app),
-        'juan.delacruz@sfsr.test',
-        'Buyer@2026',
-      );
       await updateDoc(doc(db, 'trippingRequests', created[0]), {
         status: 'confirmed',
       });
@@ -186,6 +231,28 @@ async function main() {
       detail = code;
     }
     report(blocked, 'a buyer CANNOT confirm a request themselves', detail);
+    await deleteApp(app).catch(() => {});
+  }
+
+  // --- one buyer must not read another buyer's lead -----------------------
+  // Now that every request is owned, ownership has to actually mean something.
+  if (created.length > 0) {
+    const { app, db } = await signedInAs(
+      'other',
+      'maria.santos@sfsr.test',
+      'Buyer@2026',
+    );
+    let blocked = false;
+    let detail = '';
+    try {
+      await getDoc(doc(db, 'trippingRequests', created[0]));
+      detail = "the read SUCCEEDED — buyers can see each other's requests";
+    } catch (error) {
+      const code = (error as { code?: string }).code ?? '';
+      blocked = code === 'permission-denied';
+      detail = code;
+    }
+    report(blocked, "a buyer CANNOT read another buyer's request", detail);
     await deleteApp(app).catch(() => {});
   }
 

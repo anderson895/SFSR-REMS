@@ -1,11 +1,10 @@
 /**
  * Site-visit ("tripping") requests.
  *
- * The one thing in this system a signed-out visitor can write. That is
- * deliberate — a tripping request is a lead, and requiring an account before
- * someone will even agree to look at the building defeats the purpose. The
- * cost is that `firestore.rules` has to do all the work here, since there is
- * no authenticated identity to lean on; see the field validation there.
+ * Requires a signed-in buyer. A site visit commits a salesperson and a car, so
+ * it is worth an account — and pinning each request to a real uid is what lets
+ * `firestore.rules` refuse anonymous writes, which is the difference between a
+ * queue of leads and an open endpoint anyone can flood.
  *
  * No unit is held and no reservation is created. This is an enquiry.
  */
@@ -35,8 +34,8 @@ export interface CreateTrippingInput {
   preferredSlot: string;
   partySize: number;
   message?: string;
-  /** Present only when the visitor happened to already be signed in. */
-  requestedByUid?: string | null;
+  /** The signed-in buyer filing this. Required — the rules reject anything else. */
+  requestedByUid: string;
 }
 
 /** Longest any free-text field may be, matching the rules. */
@@ -57,7 +56,7 @@ export async function createTrippingRequest(
     partySize: input.partySize,
     message,
     status: TrippingStatus.PENDING,
-    requestedByUid: input.requestedByUid ?? null,
+    requestedByUid: input.requestedByUid,
     createdAt: serverTimestamp(),
   });
 

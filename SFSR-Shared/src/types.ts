@@ -4,6 +4,7 @@ import type {
   DocType,
   DocumentStatus,
   ReservationSource,
+  IdType,
   ReservationStatus,
   Role,
   TrippingStatus,
@@ -117,8 +118,8 @@ export interface TrippingRequest {
   partySize: number;
   message?: string;
   status: TrippingStatus;
-  /** Set when the visitor happened to be signed in; null for a cold lead. */
-  requestedByUid: string | null;
+  /** The buyer who filed it. Never null — requests require an account. */
+  requestedByUid: string;
   createdAt: Timestamp;
   handledBy?: string;
   handledAt?: Timestamp;
@@ -146,6 +147,15 @@ export interface ValidationResult {
   typeMatch: boolean;
   typeScore: number;
   detectedType: DocType | null;
+  /**
+   * Stage 1b — for a Valid ID, is it the *specific* card the buyer selected?
+   *
+   * Null on documents where no ID subtype was claimed, which is every category
+   * other than Valid ID.
+   */
+  idTypeMatch?: boolean | null;
+  idTypeScore?: number;
+  detectedIdType?: IdType | null;
   /** Stage 2 — does the name on the document match the registered buyer? */
   nameDistance: number;
   nameSimilarity: number;
@@ -162,6 +172,8 @@ export interface DocumentRecord {
   reservationId: string;
   buyerUid: string | null;
   docType: DocType;
+  /** Which government ID this is. Only set when docType is `valid_id`. */
+  idType?: IdType | null;
   fileUrl: string;
   publicId: string;
   mimeType: string;

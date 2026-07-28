@@ -160,15 +160,19 @@ service cloud.firestore {
     // --- tripping requests -----------------------------------------------
 
     match /trippingRequests/{trippingId} {
-      // The only collection an anonymous visitor may write to. A site visit is
-      // requested *before* anyone registers, so demanding an account here would
-      // turn away the leads the feature exists to capture.
+      // Sign-in required.
       //
-      // With no identity to check, the rules validate the shape instead: an
-      // exact field set (so no one can smuggle in extra data), types, lengths,
-      // and a status pinned to 'pending' so a visitor cannot file a booking
-      // that is already confirmed. This constrains what can be written, not how
-      // often — see the note in SETUP.md about rate limiting.
+      // An earlier draft accepted anonymous requests to capture cold leads.
+      // That made this the one collection any stranger could write to, and
+      // rules cannot express a rate limit — so it needed App Check to be safe.
+      // Requiring an account removes the hole outright: every request now
+      // carries a uid that can be traced, disabled, or rate-limited by Firebase
+      // Auth itself.
+      //
+      // The shape checks stay. Authentication says *who* is writing, not that
+      // what they wrote is sane: the exact field set stops extra data being
+      // smuggled in, and a status pinned to 'pending' stops a buyer filing a
+      // booking that is already confirmed.
       function validTripping() {
         let d = request.resource.data;
         return d.keys().hasOnly([
@@ -195,15 +199,15 @@ service cloud.firestore {
             && d.partySize is int && d.partySize >= 1 && d.partySize <= 10
             && (!('message' in d)
                 || (d.message is string && d.message.size() <= 500))
-            // A signed-in visitor may only stamp their own uid on it.
-            && (d.requestedByUid == null
-                || d.requestedByUid == request.auth.uid);
+            // No longer nullable: the request must be owned by its author, so
+            // it can be traced back and so the buyer can read it afterwards.
+            && d.requestedByUid == request.auth.uid;
       }
 
-      allow create: if validTripping();
+      allow create: if signedIn() && validTripping();
 
-      // Leads are commercially sensitive: staff see all, a signed-in visitor
-      // sees only the ones they filed, and nobody else reads them at all.
+      // Leads are commercially sensitive: staff see all, a buyer sees only the
+      // ones they filed, and nobody else reads them at all.
       allow read: if isStaff()
                   || (signedIn()
                       && resource.data.requestedByUid == request.auth.uid);

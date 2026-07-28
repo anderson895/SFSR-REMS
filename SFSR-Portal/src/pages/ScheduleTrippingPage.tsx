@@ -12,11 +12,10 @@ import { useProjects } from '../units/useUnits';
 /**
  * Book a site visit.
  *
- * Open to signed-out visitors by design — someone deciding whether a building
- * is worth seeing has no reason to have registered yet, and this is usually
- * the first contact the sales team gets. If the visitor does happen to be
- * signed in, their details pre-fill and the request is stamped with their uid
- * so it appears in their own history.
+ * Behind `RequireBuyer`, so `user` is always present by the time this renders.
+ * Details pre-fill from the profile and the request is stamped with the
+ * buyer's uid, which is what `firestore.rules` matches on for both the write
+ * and the buyer's later read of their own request.
  */
 export default function ScheduleTrippingPage() {
   const { profile, user } = useAuth();
@@ -64,6 +63,8 @@ export default function ScheduleTrippingPage() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (!user) return;
+
     setError('');
     setBusy(true);
 
@@ -71,7 +72,7 @@ export default function ScheduleTrippingPage() {
       await createTrippingRequest({
         ...form,
         partySize: Number(form.partySize) || 1,
-        requestedByUid: user?.uid ?? null,
+        requestedByUid: user.uid,
       });
       setDone(true);
     } catch (err) {
@@ -120,7 +121,8 @@ export default function ScheduleTrippingPage() {
     <div className="form-card form-card-wide">
       <h1>Schedule a Tripping</h1>
       <p className="form-sub">
-        Visit the site and see the model unit in person. No account needed.
+        Visit the site and see the model unit in person. Our sales team will
+        confirm your slot before the date.
       </p>
 
       <form onSubmit={handleSubmit}>

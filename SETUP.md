@@ -194,31 +194,27 @@ If you zip a project to hand it off, **include `SFSR-Shared` and the root
 A buyer account is refused by the Internal system, and a staff account is
 refused by the Portal — both in the UI and in `firestore.rules`.
 
-## Known limitation: tripping requests are an open write endpoint
+## Every write requires an account
 
-`trippingRequests` is the one collection an unauthenticated visitor may write
-to. That is deliberate — a site-visit enquiry arrives before anyone registers,
-and requiring an account first would turn away the leads the feature exists to
-capture.
+There is no anonymous write path anywhere in the system. Browsing is public —
+`units` is readable by anyone, which the study requires — but creating a
+reservation, uploading a document, or booking a site visit all need a signed-in
+buyer.
 
-The rules constrain **what** can be written: an exact field set, types, length
-caps, a status pinned to `pending`, and a `requestedByUid` that must be null or
-the caller's own. `scripts/checkTrippingRules.ts` exercises all of it:
+An earlier draft of `trippingRequests` accepted anonymous submissions to
+capture cold leads. That made it the one collection a stranger could write to,
+and Firestore rules cannot express a rate limit, so it would have needed App
+Check to be safe against flooding. Requiring sign-in removed the hole instead
+of mitigating it: every request now carries a uid that Firebase Auth can trace,
+disable, or throttle.
+
+The shape checks remain on top of that, because authentication says *who* is
+writing, not that what they wrote is sane. `scripts/checkTrippingRules.ts`
+exercises both halves:
 
 ```
-npx tsx scripts/checkTrippingRules.ts
+npm run check:rules
 ```
-
-They do **not** constrain **how often**. A script could file thousands of
-well-formed requests and fill the staff queue with noise. Firestore security
-rules cannot express rate limits, so closing this properly needs one of:
-
-- **App Check** with reCAPTCHA — the standard fix, no schema changes
-- A Cloud Function fronting the write, with per-IP throttling
-- Requiring sign-in, which trades the lead capture away
-
-None is in place. It is acceptable for a defended prototype on a private
-project, and should be addressed before this is exposed to real traffic.
 
 ## Phase 1 module coverage
 
