@@ -59,6 +59,23 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // --- catalogue metadata ----------------------------------------------
+    //
+    // Projects and unit types hold what used to be copied onto every unit:
+    // amenities, images, floor plans, descriptions, starting prices. They are
+    // the public face of the catalogue, so anyone may read them, and only staff
+    // may change them.
+
+    match /projects/{projectId} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    match /unitTypes/{typeId} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
     // --- units -----------------------------------------------------------
 
     match /units/{unitId} {
@@ -77,7 +94,11 @@ service cloud.firestore {
             && request.resource.data.status == 'on_hold'
             && request.resource.data.heldBy is string
             && request.resource.data.price == resource.data.price
-            && request.resource.data.unitNo == resource.data.unitNo;
+            && request.resource.data.unitNo == resource.data.unitNo
+            // Pinning the references too: without this a buyer could point a
+            // unit at a different type or project while holding it.
+            && request.resource.data.typeId == resource.data.typeId
+            && request.resource.data.projectId == resource.data.projectId;
       }
 
       // The mirror image: a buyer withdrawing their own reservation puts the

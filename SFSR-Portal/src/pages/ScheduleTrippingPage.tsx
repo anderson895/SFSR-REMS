@@ -1,4 +1,4 @@
-import { CheckCircleIcon } from '@heroicons/react/24/outline';
+﻿import { CheckCircleIcon } from '@heroicons/react/24/outline';
 import {
   TRIPPING_SLOTS,
   createTrippingRequest,
@@ -7,7 +7,7 @@ import {
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { useProjects } from '../units/useUnits';
+import { useProjectSummaries } from '../units/useUnits';
 
 /**
  * Book a site visit.
@@ -19,7 +19,7 @@ import { useProjects } from '../units/useUnits';
  */
 export default function ScheduleTrippingPage() {
   const { profile, user } = useAuth();
-  const { projects } = useProjects();
+  const { projects } = useProjectSummaries();
   const [params] = useSearchParams();
 
   const [form, setForm] = useState({
@@ -37,7 +37,7 @@ export default function ScheduleTrippingPage() {
   const [done, setDone] = useState(false);
 
   // Site visits are booked ahead, and the office does not take same-day
-  // requests — so tomorrow is the earliest date the picker will accept.
+  // requests â€” so tomorrow is the earliest date the picker will accept.
   const earliestDate = useMemo(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -94,7 +94,7 @@ export default function ScheduleTrippingPage() {
         <h1>Request received</h1>
         <p className="form-sub">
           Our sales team will confirm your site visit by phone or email. Nothing
-          is reserved by this request — it is a viewing appointment only.
+          is reserved by this request â€” it is a viewing appointment only.
         </p>
         <dl className="spec-list">
           <div>
@@ -135,11 +135,11 @@ export default function ScheduleTrippingPage() {
             required
             onChange={(e) => setForm({ ...form, projectName: e.target.value })}
           >
-            {projects.length === 0 && <option value="">Loading…</option>}
+            {projects.length === 0 && <option value="">Loadingâ€¦</option>}
             {projects.map((p) => (
               <option key={p.name} value={p.name}>
                 {p.name}
-                {p.location && ` — ${p.location}`}
+                {p.location && ` â€” ${p.location}`}
               </option>
             ))}
           </select>
@@ -238,7 +238,7 @@ export default function ScheduleTrippingPage() {
         </p>
 
         <button type="submit" className="btn btn-brand btn-block" disabled={busy}>
-          {busy ? 'Submitting…' : 'Request site visit'}
+          {busy ? 'Submittingâ€¦' : 'Request site visit'}
         </button>
       </form>
     </div>

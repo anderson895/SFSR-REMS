@@ -5,7 +5,9 @@ import { formatPeso, useUnit } from '../units/useUnits';
 
 export default function UnitDetailPage() {
   const { unitId } = useParams();
-  const { unit, loading } = useUnit(unitId);
+  // Amenities, images, and the floor plan live on the project and the type now,
+  // so the page reads all three rather than copies held on every unit.
+  const { unit, project, unitType, loading } = useUnit(unitId);
   const { user } = useAuth();
 
   if (loading) return <p className="loading">Loading unit…</p>;
@@ -37,8 +39,8 @@ export default function UnitDetailPage() {
           <p className="unit-card-sub">
             {[
               unit.projectName,
-              unit.building === unit.projectName ? '' : unit.building,
-              unit.location ?? '',
+              project?.building === unit.projectName ? '' : (project?.building ?? ''),
+              project?.location ?? '',
             ]
               .filter(Boolean)
               .join(' · ')}
@@ -52,28 +54,28 @@ export default function UnitDetailPage() {
       <div className="unit-detail-grid">
         <section>
           <div className="unit-hero">
-            {unit.images[0] ? (
-              <img src={unit.images[0]} alt={`Unit ${unit.unitNo}`} />
+            {unitType?.images?.[0] ? (
+              <img src={unitType.images[0]} alt={`Unit ${unit.unitNo}`} />
             ) : (
               <span>{unit.type}</span>
             )}
           </div>
 
           <h2>About this unit</h2>
-          <p>{unit.description}</p>
+          <p>{unitType?.description}</p>
 
           <h2>Amenities</h2>
           <ul className="amenities">
-            {unit.amenities.map((amenity) => (
+            {(project?.amenities ?? []).map((amenity) => (
               <li key={amenity}>{amenity}</li>
             ))}
           </ul>
 
-          {unit.floorPlanUrl && (
+          {unitType?.floorPlanUrl && (
             <>
               <h2>Floor plan</h2>
               <img
-                src={unit.floorPlanUrl}
+                src={unitType.floorPlanUrl}
                 alt="Floor plan"
                 className="floor-plan"
               />
@@ -83,7 +85,9 @@ export default function UnitDetailPage() {
 
         <aside className="unit-aside">
           <p className="unit-price-big">{formatPeso(unit.price)}</p>
-          {unit.promo && <p className="unit-promo-inline">{unit.promo}</p>}
+          {unitType?.promo && (
+            <p className="unit-promo-inline">{unitType.promo}</p>
+          )}
 
           <dl className="spec-list">
             <div>
@@ -92,22 +96,22 @@ export default function UnitDetailPage() {
             </div>
             <div>
               <dt>Floor area</dt>
-              <dd>{unit.floorAreaSqm} sqm</dd>
+              <dd>{unitType?.floorAreaSqm ?? '—'} sqm</dd>
             </div>
             <div>
               <dt>Floor</dt>
               <dd>{unit.floor}</dd>
             </div>
-            {unit.building !== unit.projectName && (
+            {project && project.building !== unit.projectName && (
               <div>
                 <dt>Tower</dt>
-                <dd>{unit.building}</dd>
+                <dd>{project.building}</dd>
               </div>
             )}
-            {unit.location && (
+            {project?.location && (
               <div>
                 <dt>Location</dt>
-                <dd>{unit.location}</dd>
+                <dd>{project.location}</dd>
               </div>
             )}
           </dl>

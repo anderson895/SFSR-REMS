@@ -94,6 +94,16 @@ export const AccountType = {
 } as const;
 export type AccountType = (typeof AccountType)[keyof typeof AccountType];
 
+/**
+ * Unit types offered, cheapest first.
+ *
+ * Listed explicitly because Firestore has no DISTINCT. The catalogue summarises
+ * each type with an aggregation query instead of reading every unit, so it has
+ * to know which types to ask about. Must match the types produced by
+ * `scripts/unitData.ts` — a type missing here is invisible in the catalogue.
+ */
+export const UNIT_TYPES = ['Studio', '1BR', '2BR', '3BR'] as const;
+
 /** Documentary requirement categories the buyer picks before uploading. */
 export const DocType = {
   VALID_ID: 'valid_id',

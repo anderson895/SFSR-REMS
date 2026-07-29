@@ -151,6 +151,77 @@ npm run dev
 npm run build
 ```
 
+## Developing without burning Firebase quota
+
+The free Spark plan allows **50,000 Firestore reads per day**. That sounds
+generous and is not: Firestore bills one read per document *every time a
+listener attaches*, and Vite re-attaches every listener on every file save. A
+single day of editing this project consumed 52,000 reads against only 712
+writes — a 73:1 ratio — and locked the database for the rest of the day.
+
+**Develop against the local emulators.** They cost nothing, work offline, and
+enforce the same `firestore.rules`.
+
+```bash
+# .env
+VITE_USE_EMULATOR=true
+```
+
+```bash
+npm run emulators      # terminal 1 — keeps data in .emulator-data/
+npm run dev:internal   # terminal 2
+```
+
+Seed the emulator the same way as the real project — the scripts follow the
+same flag, so they write to whichever target the apps are using:
+
+```bash
+npm run migrate:data -- admin@example.com password123
+```
+
+Emulator UI: http://127.0.0.1:4000 · requires Java (already installed if
+`java -version` works).
+
+Set `VITE_USE_EMULATOR=` (blank) to point back at the real project. The console
+logs which target is active on startup, so there is no guessing.
+
+### If you do hit the limit
+
+Quota resets at **midnight US Pacific time** (about 3–4 PM Manila). Nothing is
+lost or broken; reads simply fail until then. Switch to the emulator and keep
+working.
+
+### What was done to reduce reads
+
+- Firestore now uses a **persistent on-disk cache**, so a re-attaching listener
+  resyncs from IndexedDB and pays only for documents that actually changed.
+- The audit trail **fetches once with a Refresh button** instead of holding a
+  live 300-document listener. That listener alone cost 300 reads per hot reload
+  and was the single largest consumer.
+
+## Demo staff accounts
+
+```bash
+npm run seed:staff                  # emulator, or whatever .env points at
+npm run seed:staff -- --production  # the live project
+```
+
+Creates one account per role, so role-based access control can be shown rather
+than described — sign in as each and watch the navigation and the permitted
+actions change.
+
+| Role | Email | Password | Sees |
+|---|---|---|---|
+| `admin` | admin@sfsr.test | `Admin@2026` | Everything, plus user management and the audit trail |
+| `sales` | sales@sfsr.test | `Sales@2026` | Reservations, walk-in creation, approve and reject |
+| `documentation` | docs@sfsr.test | `Docs@2026` | Document review, OCR and Levenshtein results |
+
+Idempotent: re-running resets the passwords and merges the profiles rather than
+creating duplicates, which is the quickest fix for a forgotten demo password.
+
+These passwords are published in this file. They are meant for the emulator and
+for a demo; change them before the project holds anything real.
+
 ## Deploying
 
 Only the Portal goes online. The Internal Management System is office-based and

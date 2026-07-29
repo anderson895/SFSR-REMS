@@ -86,7 +86,10 @@ export async function createReservation(
 
       tx.set(reservationRef, {
         unitId: input.unitId,
-        unitLabel: `${unit.building} - Unit ${unit.unitNo}`,
+        // Built from `projectName`, one of the two fields deliberately kept on
+        // the unit, so labelling a reservation still needs no second read after
+        // the building name moved to the project document.
+        unitLabel: `${unit.projectName} - Unit ${unit.unitNo}`,
         buyerUid: input.buyerUid,
         buyer: input.buyer,
         source: input.source,

@@ -141,7 +141,7 @@ export default function WalkInReservationPage() {
             </option>
             {units.map((unit) => (
               <option key={unit.id} value={unit.id}>
-                {unit.building} — Unit {unit.unitNo} ({unit.type}, ₱
+                {unit.projectName} — Unit {unit.unitNo} ({unit.type}, ₱
                 {unit.price.toLocaleString('en-PH')})
               </option>
             ))}

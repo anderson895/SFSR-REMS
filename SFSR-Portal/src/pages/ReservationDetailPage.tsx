@@ -15,12 +15,15 @@ import {
 } from '@sfsr/shared';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
 export default function ReservationDetailPage() {
   const { reservationId } = useParams();
   const { user } = useAuth();
+  // Set by the reserve page when the hold succeeded but the ID upload did not.
+  const uploadFailed = (useLocation().state as { uploadFailed?: string } | null)
+    ?.uploadFailed;
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -29,7 +32,16 @@ export default function ReservationDetailPage() {
   const [cancelError, setCancelError] = useState('');
   const [cancelling, setCancelling] = useState(false);
 
-  const { documents } = useReservationDocuments(reservationId);
+  // The error is read, not discarded. A failed listener returns an empty list,
+  // which is indistinguishable from "nothing uploaded yet" — and telling a
+  // buyer their documents are missing when they are merely unreadable sends
+  // them to re-upload files that are already there.
+  // The uid is passed so the query carries the constraint the rules check —
+  // see useReservationDocuments. Without it the server refuses the query.
+  const { documents, error: documentsError } = useReservationDocuments(
+    reservationId,
+    user?.uid,
+  );
   const progress = requirementProgress(documents);
 
   useEffect(() => {
@@ -141,6 +153,22 @@ export default function ReservationDetailPage() {
           </div>
         </dl>
       </section>
+
+      {uploadFailed && (
+        <p className="field-error">
+          <strong>Your reservation was created, but the ID did not upload.</strong>{' '}
+          {uploadFailed} The unit is held for you — upload your ID below to
+          start the review.
+        </p>
+      )}
+
+      {documentsError && (
+        <p className="field-error">
+          Your uploaded documents could not be loaded, so the checklist below
+          may be incomplete. Refresh the page before uploading anything again.
+          ({documentsError})
+        </p>
+      )}
 
       <section className="panel-card">
         <h2>

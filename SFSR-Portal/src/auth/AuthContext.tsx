@@ -13,12 +13,15 @@ interface AuthState {
   profile: UserProfile | null;
   /** True until the first auth callback lands, so guards don't flash. */
   loading: boolean;
+  /** True while the profile document is still in flight. */
+  profileLoading: boolean;
 }
 
 const AuthContext = createContext<AuthState>({
   user: null,
   profile: null,
   loading: true,
+  profileLoading: false,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -26,12 +29,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: null,
     profile: null,
     loading: true,
+    profileLoading: false,
   });
 
   useEffect(
     () =>
-      watchAuth(({ user, profile }) =>
-        setState({ user, profile, loading: false }),
+      watchAuth(({ user, profile, profileLoading }) =>
+        setState({ user, profile, loading: false, profileLoading }),
       ),
     [],
   );

@@ -25,7 +25,12 @@ import {
   isAcceptedIdType,
 } from './constants';
 import { scoreDocumentType, scoreIdType } from './docPatterns';
-import { bestWindowSimilarity, tokenAlignedComparison } from './levenshtein';
+import {
+  bestWindowSimilarity,
+  normalizeText,
+  similarityRatio,
+  tokenAlignedComparison,
+} from './levenshtein';
 import type { OcrResult, ValidationResult } from './types';
 
 /** Below this, we do not believe the document is of the selected type. */
@@ -33,6 +38,8 @@ const TYPE_ACCEPT_THRESHOLD = 0.5;
 
 export interface ValidateInput {
   ocr: OcrResult;
+  /** OCR of the reverse side, when one was supplied. */
+  backOcr?: OcrResult | null;
   /** The category the user selected before uploading. */
   selectedType: DocType;
   /**
@@ -48,10 +55,18 @@ export interface ValidateInput {
 
 export function validateDocument({
   ocr,
+  backOcr,
   selectedType,
   selectedIdType,
   registeredName,
 }: ValidateInput): ValidationResult {
+  // Reported alongside the verdict rather than blocking on its own: a
+  // duplicated side is a paperwork error for staff to bounce back, not
+  // grounds for the system to refuse the reservation outright.
+  const backSideDistinct = backOcr
+    ? !looksLikeSameSide(ocr.rawText, backOcr.rawText)
+    : null;
+
   const scores = scoreDocumentType(ocr.rawText);
   const selectedScore = scores.find((s) => s.docType === selectedType);
   const best = scores[0];
@@ -78,6 +93,7 @@ export function validateDocument({
       typeScore,
       detectedType,
       idTypeMatch: null,
+      backSideDistinct,
       nameDistance: -1,
       nameSimilarity: 0,
       comparedAgainst: registeredName,
@@ -103,6 +119,7 @@ export function validateDocument({
       idTypeMatch: false,
       idTypeScore: idCheck.idTypeScore,
       detectedIdType: idCheck.detectedIdType,
+      backSideDistinct,
       nameDistance: -1,
       nameSimilarity: 0,
       comparedAgainst: registeredName,
@@ -148,6 +165,7 @@ export function validateDocument({
     idTypeMatch: idCheck ? true : null,
     idTypeScore: idCheck?.idTypeScore,
     detectedIdType: idCheck?.detectedIdType ?? null,
+    backSideDistinct,
     nameDistance: comparison.distance,
     nameSimilarity: Number(comparison.similarity.toFixed(4)),
     comparedAgainst: comparison.normalizedA,
@@ -231,6 +249,38 @@ function checkIdType(
       `right ID, and upload a clearer photo where the header and issuing ` +
       `office are legible.`,
   };
+}
+
+/**
+ * Above this the two sides read as the same page.
+ *
+ * Set high because the front and back of one card do share text — the holder's
+ * name and card number often appear on both — so ordinary overlap must not be
+ * mistaken for a duplicate. Only a near-identical read trips it.
+ */
+const SAME_SIDE_SIMILARITY = 0.9;
+
+/**
+ * Did the buyer photograph the same side twice?
+ *
+ * Worth checking because it is the common mistake and the one that otherwise
+ * passes in silence: the front is a valid ID, so Stage 1, 1b and 2 all succeed
+ * and nothing reports that the back was never actually supplied.
+ *
+ * Two empty reads are treated as indistinguishable rather than distinct — a
+ * pair of unreadable photos is not evidence of two sides.
+ */
+export function looksLikeSameSide(
+  frontText: string,
+  backText: string,
+): boolean {
+  const front = normalizeText(frontText);
+  const back = normalizeText(backText);
+
+  if (!front && !back) return true;
+  if (!front || !back) return false;
+
+  return similarityRatio(front, back) >= SAME_SIDE_SIMILARITY;
 }
 
 /** Human-readable label for a verdict, used by both apps' badges. */

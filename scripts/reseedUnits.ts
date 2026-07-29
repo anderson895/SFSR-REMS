@@ -22,7 +22,7 @@
 
 import { FieldValue } from 'firebase-admin/firestore';
 import { PROJECT_ID, adminDb, explainCredentialError } from './adminApp';
-import { buildSeedUnits } from './unitData';
+import { buildSeedCatalogue } from './unitData';
 
 /** Firestore caps a batch at 500 operations. */
 const BATCH_LIMIT = 400;
@@ -84,16 +84,30 @@ async function deleteAll(): Promise<number> {
 }
 
 async function writeSeed(): Promise<number> {
-  const units = buildSeedUnits();
+  const { projects, unitTypes, units } = buildSeedCatalogue();
+  const stamp = {
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  // Projects and types carry deterministic ids, so this overwrites them in
+  // place instead of leaving orphaned copies of the previous catalogue.
+  const metaBatch = adminDb.batch();
+  for (const { id, ...project } of projects) {
+    metaBatch.set(adminDb.collection('projects').doc(id), { ...project, ...stamp });
+  }
+  for (const { id, ...type } of unitTypes) {
+    metaBatch.set(adminDb.collection('unitTypes').doc(id), { ...type, ...stamp });
+  }
+  await metaBatch.commit();
+  console.log(
+    `  + wrote ${projects.length} project(s), ${unitTypes.length} unit type(s)`,
+  );
 
   for (let i = 0; i < units.length; i += BATCH_LIMIT) {
     const batch = adminDb.batch();
     for (const unit of units.slice(i, i + BATCH_LIMIT)) {
-      batch.set(adminDb.collection('units').doc(), {
-        ...unit,
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+      batch.set(adminDb.collection('units').doc(), { ...unit, ...stamp });
     }
     await batch.commit();
     console.log(`  + wrote ${Math.min(i + BATCH_LIMIT, units.length)}`);
@@ -106,13 +120,13 @@ async function main() {
   console.log(`\nReseed unit inventory -> project "${PROJECT_ID}"\n`);
 
   const existing = (await adminDb.collection('units').count().get()).data().count;
-  const incoming = buildSeedUnits();
+  const incoming = buildSeedCatalogue();
 
   console.log(`  current inventory:  ${existing} unit(s)`);
-  console.log(`  will be replaced by: ${incoming.length} unit(s)`);
-
-  const projects = [...new Set(incoming.map((u) => u.projectName))];
-  console.log(`  projects: ${projects.join(', ')}\n`);
+  console.log(`  will be replaced by: ${incoming.units.length} unit(s)`);
+  console.log(
+    `  projects: ${incoming.projects.map((p) => p.name).join(', ')}\n`,
+  );
 
   const problems = await checkSafeToDelete();
 
@@ -144,7 +158,7 @@ async function main() {
   console.log('\nWriting new inventory…');
   const written = await writeSeed();
 
-  const prices = incoming.map((u) => u.price);
+  const prices = incoming.units.map((u) => u.price);
   console.log(
     `\nReplaced ${deleted} unit(s) with ${written}.` +
       `\n  price range: PHP ${Math.min(...prices).toLocaleString()} - ${Math.max(...prices).toLocaleString()}\n`,

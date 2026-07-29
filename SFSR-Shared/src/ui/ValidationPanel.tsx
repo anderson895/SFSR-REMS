@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DOC_TYPE_LABELS, Verdict } from '../constants';
+import { DOC_TYPE_LABELS, ID_TYPE_LABELS, Verdict } from '../constants';
 import type { DocumentRecord } from '../types';
 import { verdictLabel } from '../validateDocument';
 
@@ -46,6 +46,43 @@ export function ValidationPanel({ document }: { document: DocumentRecord }) {
             )}
           </span>
         </div>
+
+        {/* Rendered only when the specific card was claimed. Null means the
+            check did not apply, which is not the same as it passing. */}
+        {validation.idTypeMatch != null && (
+          <div className="metric">
+            <span className="metric-label">Stage 1b — Which ID</span>
+            <span className="metric-value">
+              {validation.idTypeMatch ? 'Matches' : 'Does not match'}
+            </span>
+            <span className="metric-sub">
+              {document.idType && ID_TYPE_LABELS[document.idType]} &middot;
+              confidence {((validation.idTypeScore ?? 0) * 100).toFixed(0)}%
+              {validation.detectedIdType &&
+                validation.detectedIdType !== document.idType && (
+                  <>
+                    {' '}
+                    &middot; looks like{' '}
+                    {ID_TYPE_LABELS[validation.detectedIdType]}
+                  </>
+                )}
+            </span>
+          </div>
+        )}
+
+        {validation.backSideDistinct != null && (
+          <div className="metric">
+            <span className="metric-label">Both sides</span>
+            <span className="metric-value">
+              {validation.backSideDistinct ? 'Two sides' : 'Same side twice'}
+            </span>
+            <span className="metric-sub">
+              {validation.backSideDistinct
+                ? 'Front and back read as different pages.'
+                : 'Both uploads read as the same page — the back may be missing.'}
+            </span>
+          </div>
+        )}
 
         <div className="metric">
           <span className="metric-label">Stage 2 — Name similarity</span>

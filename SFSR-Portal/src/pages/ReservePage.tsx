@@ -1,12 +1,24 @@
 import {
+  ACCEPTED_ID_TYPES,
+  ACCEPTED_MIME_TYPES,
+  DocType,
+  ID_TYPE_LABELS,
+  type IdType,
+  MAX_UPLOAD_BYTES,
   ReservationSource,
   UnitStatus,
   UnitUnavailableError,
+  Verdict,
+  createDocumentRecord,
   createReservation,
   fullNameOf,
+  saveDocumentAnalysis,
+  uploadToCloudinary,
+  useDocumentAnalysis,
+  validateFile,
   writeAuditLog,
 } from '@sfsr/shared';
-import { type FormEvent, useEffect, useState } from 'react';
+import { type ChangeEvent, type FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { formatPeso, useUnit } from '../units/useUnits';
@@ -18,12 +30,19 @@ import { formatPeso, useUnit } from '../units/useUnits';
  * a snapshot is stored on the reservation. Keeping a copy means the record
  * still shows who reserved and under what details even if the buyer later edits
  * their profile — important for a document trail that has to stand up to audit.
+ *
+ * The valid ID is collected and checked *here*, before the unit is held. Order
+ * matters: OCR runs in the browser, so the ID can be read and matched against
+ * the buyer's name without uploading anything. Only once it passes does the
+ * unit go On Hold and the file leave the device. A buyer holding the wrong
+ * document therefore never takes a unit off the market, and a failed attempt
+ * leaves no orphaned file in Cloudinary.
  */
 export default function ReservePage() {
   const { unitId } = useParams();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const { unit, loading } = useUnit(unitId);
+  const { unit, unitType, loading } = useUnit(unitId);
 
   const [buyer, setBuyer] = useState({
     firstName: '',
@@ -34,8 +53,24 @@ export default function ReservePage() {
     address: '',
     idNumber: '',
   });
+  const [idType, setIdType] = useState<IdType | ''>('');
+  const [idFile, setIdFile] = useState<File | null>(null);
+  const [idBackFile, setIdBackFile] = useState<File | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  /** What the automated check said, shown before the reservation is created. */
+  const [idVerdict, setIdVerdict] = useState('');
+  /**
+   * Set the moment this page's own reservation succeeds.
+   *
+   * `useUnit` is a live subscription, so the unit flips to `on_hold` the
+   * instant the reservation commits — while the ID is still uploading. Without
+   * this the "no longer available" guard below fires on the buyer's own hold
+   * and tells them someone else got there first, which is both wrong and
+   * alarming.
+   */
+  const [ownHold, setOwnHold] = useState('');
+  const analysis = useDocumentAnalysis();
 
   useEffect(() => {
     if (!profile) return;
@@ -63,7 +98,8 @@ export default function ReservePage() {
     );
   }
 
-  if (unit.status !== UnitStatus.AVAILABLE) {
+  // `ownHold` exempts the buyer from their own hold — see the state above.
+  if (!ownHold && unit.status !== UnitStatus.AVAILABLE) {
     return (
       <div className="notice notice-error">
         <h2>This unit is no longer available</h2>
@@ -79,13 +115,89 @@ export default function ReservePage() {
     );
   }
 
+  function pickIdFile(
+    event: ChangeEvent<HTMLInputElement>,
+    set: (file: File | null) => void,
+  ) {
+    const chosen = event.target.files?.[0] ?? null;
+    setError('');
+    setIdVerdict('');
+
+    if (chosen) {
+      const problem = validateFile(chosen);
+      if (problem) {
+        setError(problem);
+        set(null);
+        event.target.value = '';
+        return;
+      }
+    }
+    set(chosen);
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!user || !unit) return;
 
+    if (!idType || !idFile || !idBackFile) {
+      setError(
+        'Select your ID type and upload photos of both the front and the back.',
+      );
+      return;
+    }
+
     setError('');
+    setIdVerdict('');
     setBusy(true);
+
     try {
+      // --- 1. Read and check the ID, before anything is written -----------
+      const registeredName = fullNameOf(buyer);
+      const result = await analysis.inspect({
+        file: idFile,
+        backFile: idBackFile,
+        docType: DocType.VALID_ID,
+        idType,
+        registeredName,
+      });
+
+      if (!result) {
+        // `analysis.error` is already displayed; nothing was committed.
+        setBusy(false);
+        return;
+      }
+
+      const { ocr, backOcr, validation } = result;
+
+      // Stage 1 or 1b failed — wrong document, or the wrong ID. Refuse before
+      // the unit is touched.
+      if (!validation.typeMatch || validation.idTypeMatch === false) {
+        setError(validation.message);
+        setBusy(false);
+        return;
+      }
+
+      // Photographing the front twice is the common mistake, and it otherwise
+      // passes in silence: the front is a valid ID, so every other check
+      // succeeds and nobody notices the back was never supplied.
+      if (validation.backSideDistinct === false) {
+        setError(
+          'Both images look like the same side of your ID. Upload the front ' +
+            'and the back as separate photos.',
+        );
+        setBusy(false);
+        return;
+      }
+
+      // Stage 2 is a name comparison, and OCR misreads names often enough that
+      // a hard block here would turn away legitimate buyers. A mismatch is
+      // surfaced and left for staff, exactly as the study requires — the
+      // automated result is a recommendation, never the decision.
+      if (validation.verdict !== Verdict.MATCH) {
+        setIdVerdict(validation.message);
+      }
+
+      // --- 2. Now take the unit ------------------------------------------
       const reservationId = await createReservation({
         unitId: unit.id,
         buyer,
@@ -94,16 +206,77 @@ export default function ReservePage() {
         createdBy: user.uid,
       });
 
+      // Claim the hold before anything else can re-render: the live unit
+      // subscription has already fired by now.
+      setOwnHold(reservationId);
+
       await writeAuditLog({
         actorUid: user.uid,
-        actorName: fullNameOf(buyer),
+        actorName: registeredName,
         action: 'reservation.created',
         targetType: 'reservation',
         targetId: reservationId,
         meta: { unitId: unit.id, unitNo: unit.unitNo, source: 'online' },
       });
 
-      navigate('/reservations', { replace: true });
+      // --- 3. Only now does the file leave the device ---------------------
+      //
+      // Past this point the reservation exists and the unit is held, so a
+      // failure here must not look like a failed reservation. The buyer is
+      // sent to their reservation either way, where the uploader can retry the
+      // ID — stranding them on this form would leave a real hold they cannot
+      // see.
+      try {
+        const folder = `sfsr/reservations/${reservationId}`;
+        const [front, back] = await Promise.all([
+          uploadToCloudinary(idFile, folder),
+          uploadToCloudinary(idBackFile, folder),
+        ]);
+
+        const documentId = await createDocumentRecord({
+          reservationId,
+          buyerUid: user.uid,
+          docType: DocType.VALID_ID,
+          idType,
+          fileUrl: front.url,
+          publicId: front.publicId,
+          mimeType: front.mimeType,
+          sizeBytes: front.sizeBytes,
+          backFileUrl: back.url,
+          backPublicId: back.publicId,
+          backMimeType: back.mimeType,
+          backSizeBytes: back.sizeBytes,
+          uploadedBy: user.uid,
+        });
+
+        // The scan already ran in step 1; persist it rather than repeating a
+        // ten-second OCR pass on files that have not changed.
+        await saveDocumentAnalysis(documentId, ocr, validation, backOcr);
+
+        await writeAuditLog({
+          actorUid: user.uid,
+          actorName: registeredName,
+          action: 'document.uploaded',
+          targetType: 'document',
+          targetId: documentId,
+          meta: { reservationId, docType: DocType.VALID_ID, idType },
+        });
+      } catch (uploadError) {
+        // Carried to the reservation page rather than logged and forgotten:
+        // the hold is real and the buyer has to know their ID did not attach,
+        // or they will wait for a review that cannot start.
+        navigate(`/reservations/${reservationId}`, {
+          replace: true,
+          state: {
+            uploadFailed:
+              (uploadError as Error).message ??
+              'Your ID could not be uploaded.',
+          },
+        });
+        return;
+      }
+
+      navigate(`/reservations/${reservationId}`, { replace: true });
     } catch (err) {
       // The transaction lost a race with another buyer, or the unit changed
       // status between page load and submission.
@@ -112,7 +285,6 @@ export default function ReservePage() {
           ? err.message
           : ((err as Error).message ?? 'Could not complete the reservation.'),
       );
-    } finally {
       setBusy(false);
     }
   }
@@ -121,8 +293,9 @@ export default function ReservePage() {
     <div className="form-card form-card-wide">
       <h1>Reserve Unit {unit.unitNo}</h1>
       <p className="form-sub">
-        {unit.building} &middot; {unit.type} &middot; {unit.floorAreaSqm} sqm
-        &middot; {formatPeso(unit.price)}
+        {unit.projectName} &middot; {unit.type}
+        {unitType && <> &middot; {unitType.floorAreaSqm} sqm</>} &middot;{' '}
+        {formatPeso(unit.price)}
       </p>
 
       <div className="account-badge is-initial">
@@ -207,8 +380,87 @@ export default function ReservePage() {
           />
         </label>
 
+        <h2 className="mb-1 mt-8 text-lg font-semibold">Valid ID</h2>
+        <p className="form-sub">
+          Required to reserve. Your ID is checked before the unit is held — if
+          it does not match what you selected, nothing is reserved and you can
+          try again.
+        </p>
+
+        <div className="form-row">
+          <label>
+            ID type
+            <select
+              value={idType}
+              onChange={(e) => {
+                setIdType(e.target.value as IdType);
+                setIdVerdict('');
+              }}
+              required
+              disabled={busy}
+            >
+              <option value="">Select your ID…</option>
+              {ACCEPTED_ID_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {ID_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Front of the ID
+            <input
+              type="file"
+              accept={ACCEPTED_MIME_TYPES.join(',')}
+              onChange={(e) => pickIdFile(e, setIdFile)}
+              required
+              disabled={busy}
+            />
+          </label>
+
+          <label>
+            Back of the ID
+            <input
+              type="file"
+              accept={ACCEPTED_MIME_TYPES.join(',')}
+              onChange={(e) => pickIdFile(e, setIdBackFile)}
+              required
+              disabled={busy}
+            />
+          </label>
+        </div>
+
+        <p className="hint">
+          PDF, JPG, JPEG or PNG, up to{' '}
+          {Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB each. The front is
+          what identifies the card, so make sure its header and issuing office
+          are readable. The back carries details staff need on review —
+          restrictions on a licence, address on a PhilSys card.
+        </p>
+
+        {analysis.running && (
+          <div className="ocr-status">
+            <div className="progress">
+              <div
+                className="progress-bar is-ocr"
+                style={{ width: `${Math.round(analysis.progress * 100)}%` }}
+              />
+              <span>{Math.round(analysis.progress * 100)}%</span>
+            </div>
+            <p>
+              Checking your ID — {analysis.phase}. This runs on your device; the
+              file is only uploaded once it passes. The first check takes longer
+              while the recognition model loads.
+            </p>
+          </div>
+        )}
+
+        {analysis.error && <p className="field-error">{analysis.error}</p>}
+        {idVerdict && <p className="field-note">{idVerdict}</p>}
+
         <button type="submit" className="btn btn-primary" disabled={busy}>
-          {busy ? 'Reserving…' : 'Submit reservation'}
+          {busy ? 'Checking ID and reserving…' : 'Submit reservation'}
         </button>
       </form>
     </div>

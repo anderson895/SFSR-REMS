@@ -2,7 +2,13 @@ import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { type Unit, UnitStatus } from '@sfsr/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { formatPeso, formatPesoShort, useBrowsableUnits } from '../units/useUnits';
+import {
+  formatPeso,
+  formatPesoShort,
+  useBrowsableUnits,
+  useTypeSummaries,
+  useUnitsOfType,
+} from '../units/useUnits';
 
 const ANY = 'any';
 
@@ -19,8 +25,6 @@ const ANY = 'any';
  * result list; there is no sensible type card for "everything under ₱7M".
  */
 export default function UnitsPage() {
-  const { units, available, loading, error } = useBrowsableUnits();
-
   // Seeded from the URL so the home page's search box lands here with filters
   // already applied, and so a filtered view can be shared as a link.
   const [params] = useSearchParams();
@@ -31,18 +35,39 @@ export default function UnitsPage() {
   const [maxPrice, setMaxPrice] = useState(params.get('maxPrice') ?? '');
 
   /** Which type card has been opened, if any. */
-  const [selected, setSelected] = useState<{
-    project: string;
-    type: string;
-  } | null>(null);
-
-  const projects = useMemo(
-    () => [...new Set(units.map((u) => u.projectName))].sort(),
-    [units],
-  );
+  const [selected, setSelected] = useState<{ typeId: string } | null>(null);
 
   const searching =
     search.trim() !== '' || minPrice !== '' || maxPrice !== '';
+
+  // Subscribed only while a search is active. A visitor who browses by type
+  // card never needs the flat unit list, and loading it anyway charged them for
+  // 48 documents they never saw.
+  const { units, total, hasMore, loadMore, loading, error } =
+    useBrowsableUnits(searching);
+
+  /**
+   * Type cards come from server-side aggregation, not from the units loaded
+   * into the page. The catalogue listener is capped and ordered by price, so
+   * summarising what it happened to return silently dropped the expensive types
+   * altogether and under-counted the rest.
+   */
+  const { summaries, totalAvailable, loading: summaryLoading } =
+    useTypeSummaries(project !== ANY ? project : undefined);
+
+  // Derived from the type summaries rather than from loaded units, so the
+  // project filter lists every development even when no units are loaded.
+  const projects = useMemo(
+    () => [...new Set(summaries.map((s) => s.projectName))].sort(),
+    [summaries],
+  );
+
+  /** Units of the opened type, fetched in full rather than taken from the page. */
+  const {
+    units: openUnits,
+    loadMore: loadMoreFloors,
+    loading: openLoading,
+  } = useUnitsOfType(selected?.typeId);
 
   // A type opened under one set of filters is meaningless under another.
   useEffect(() => {
@@ -59,64 +84,55 @@ export default function UnitsPage() {
       if (unit.price < floor || unit.price > ceiling) return false;
       if (!needle) return true;
 
+      // Building and location moved to the project document, so they are no
+      // longer searchable per unit; project name covers the same intent.
       return (
         unit.unitNo.toLowerCase().includes(needle) ||
-        unit.building.toLowerCase().includes(needle) ||
         unit.type.toLowerCase().includes(needle) ||
-        unit.projectName.toLowerCase().includes(needle) ||
-        (unit.location ?? '').toLowerCase().includes(needle)
+        unit.projectName.toLowerCase().includes(needle)
       );
     });
   }, [units, search, project, minPrice, maxPrice]);
 
-  /** One card per development-and-type pair. */
-  const typeGroups = useMemo(() => {
-    const groups = new Map<string, TypeGroup>();
+  /** One card per development-and-type pair, straight from the aggregation. */
+  const typeGroups = useMemo<TypeGroup[]>(
+    () =>
+      summaries.map((s) => ({
+        key: s.id,
+        typeId: s.id,
+        project: s.projectName,
+        location: '',
+        type: s.type,
+        floorAreaSqm: s.floorAreaSqm,
+        floorPlanUrl: s.floorPlanUrl ?? '',
+        description: s.description ?? '',
+        availableCount: s.availableCount,
+        // Both ends of the range come from the type document. Deriving the top
+        // of the range from the loaded units would understate it the moment the
+        // floor list is paginated.
+        //
+        // The fallbacks matter during a rollout: `endingPrice` and `totalCount`
+        // were added after the first release, so type documents written before
+        // that do not carry them and the page must still render.
+        minPrice: s.startingPrice,
+        maxPrice: s.endingPrice ?? s.startingPrice,
+        totalCount: s.totalCount ?? s.availableCount,
+        units: [],
+      })),
+    [summaries],
+  );
 
-    for (const unit of filtered) {
-      const key = `${unit.projectName}|${unit.type}`;
-      let group = groups.get(key);
+  const openGroup = useMemo(() => {
+    if (!selected) return undefined;
+    const card = typeGroups.find((g) => g.typeId === selected.typeId);
+    if (!card) return undefined;
 
-      if (!group) {
-        group = {
-          key,
-          project: unit.projectName,
-          location: unit.location ?? '',
-          type: unit.type,
-          floorAreaSqm: unit.floorAreaSqm,
-          floorPlanUrl: unit.floorPlanUrl ?? '',
-          description: unit.description ?? '',
-          availableCount: 0,
-          minPrice: Infinity,
-          maxPrice: 0,
-          units: [],
-        };
-        groups.set(key, group);
-      }
+    // Only `units` comes from what was loaded; every figure on the card stays
+    // as the type document reported it.
+    return { ...card, units: openUnits };
+  }, [selected, typeGroups, openUnits]);
 
-      group.units.push(unit);
-      if (unit.status === UnitStatus.AVAILABLE) {
-        group.availableCount++;
-        group.minPrice = Math.min(group.minPrice, unit.price);
-        group.maxPrice = Math.max(group.maxPrice, unit.price);
-      }
-    }
-
-    return [...groups.values()]
-      .map((g) => ({
-        ...g,
-        minPrice: Number.isFinite(g.minPrice) ? g.minPrice : 0,
-      }))
-      .sort((a, b) => a.minPrice - b.minPrice);
-  }, [filtered]);
-
-  const openGroup = selected
-    ? typeGroups.find(
-        (g) => g.project === selected.project && g.type === selected.type,
-      )
-    : undefined;
-
-  if (loading) {
+  if (loading || summaryLoading) {
     return (
       <p className="py-8 text-center text-gray-500">Loading available units…</p>
     );
@@ -141,7 +157,9 @@ export default function UnitsPage() {
       <div className="mb-6">
         <h1 className="mb-1 text-3xl font-bold">Available units</h1>
         <p className="text-gray-500">
-          {available.length} available across {projects.length} project
+          {/* Counted on the server, so this stays true regardless of how much
+              of the catalogue has actually been loaded into the page. */}
+          {totalAvailable} available across {projects.length} project
           {projects.length === 1 ? '' : 's'}
         </p>
       </div>
@@ -184,21 +202,55 @@ export default function UnitsPage() {
         />
       </div>
 
-      {filtered.length === 0 ? (
+      {/* Each mode has its own idea of "empty". The search view is empty when
+          no loaded unit matches; the card view is empty when the catalogue has
+          no types. Testing the search list in both modes made the card view
+          report "no matching units" the moment the search listener stopped
+          subscribing unless a search was running. */}
+      {searching && filtered.length === 0 ? (
         <div className="card p-8 text-center">
           <h2 className="mt-0 text-lg font-semibold">No matching units</h2>
           <p className="mb-0 text-gray-500">Try widening your filters.</p>
         </div>
+      ) : !searching && typeGroups.length === 0 ? (
+        <div className="card p-8 text-center">
+          <h2 className="mt-0 text-lg font-semibold">No units available</h2>
+          <p className="mb-0 text-gray-500">
+            There is no inventory to show yet.
+          </p>
+        </div>
       ) : searching ? (
         <SearchResults units={filtered} />
       ) : openGroup ? (
-        <FloorBrowser group={openGroup} onBack={() => setSelected(null)} />
+        openLoading ? (
+          <p className="py-8 text-center text-gray-500">Loading units…</p>
+        ) : (
+          <FloorBrowser
+            group={openGroup}
+            onBack={() => setSelected(null)}
+            onLoadMore={loadMoreFloors}
+          />
+        )
       ) : (
         <TypeCards
           groups={typeGroups}
           showProject={projects.length > 1}
-          onOpen={(g) => setSelected({ project: g.project, type: g.type })}
+          onOpen={(g) => setSelected({ typeId: g.typeId })}
         />
+      )}
+
+      {/* Only the search view reads from the capped listener, so only it needs
+          a way to reach further into the catalogue. The type cards are counted
+          on the server and are already complete. */}
+      {searching && hasMore && (
+        <div className="mt-6 text-center">
+          <p className="mb-2 text-sm text-gray-500">
+            Searching the first {units.length} of {total} units
+          </p>
+          <button type="button" className="btn" onClick={loadMore}>
+            Search more units
+          </button>
+        </div>
       )}
     </>
   );
@@ -206,6 +258,8 @@ export default function UnitsPage() {
 
 interface TypeGroup {
   key: string;
+  /** Document id in `unitTypes`, used to load this type's units on demand. */
+  typeId: string;
   project: string;
   location: string;
   type: string;
@@ -215,6 +269,8 @@ interface TypeGroup {
   availableCount: number;
   minPrice: number;
   maxPrice: number;
+  /** Units of this type in the building, from the type document. */
+  totalCount: number;
   units: Unit[];
 }
 
@@ -293,9 +349,11 @@ function TypeCards({
 function FloorBrowser({
   group,
   onBack,
+  onLoadMore,
 }: {
   group: TypeGroup;
   onBack: () => void;
+  onLoadMore: () => void;
 }) {
   const floors = useMemo(() => {
     const byFloor = new Map<number, Unit[]>();
@@ -343,7 +401,10 @@ function FloorBrowser({
           )}
           <p className="mt-2 text-sm font-semibold">
             {group.availableCount} available &middot;{' '}
-            {formatPeso(group.minPrice)} – {formatPeso(group.maxPrice)}
+            {formatPeso(group.minPrice)}
+            {group.maxPrice > group.minPrice && (
+              <> – {formatPeso(group.maxPrice)}</>
+            )}
           </p>
         </div>
       </header>
@@ -387,6 +448,19 @@ function FloorBrowser({
           </li>
         ))}
       </ul>
+
+      {/* `totalCount` is the type document's figure, so this stays honest about
+          how much of the stack is on screen no matter how little was loaded. */}
+      {group.units.length < group.totalCount && (
+        <div className="-mt-6 mb-10 text-center">
+          <p className="mb-2 text-sm text-gray-500">
+            Showing {group.units.length} of {group.totalCount} {group.type} units
+          </p>
+          <button type="button" className="btn" onClick={onLoadMore}>
+            Show more floors
+          </button>
+        </div>
+      )}
     </section>
   );
 }
@@ -423,7 +497,7 @@ function SearchResults({ units }: { units: Unit[] }) {
                   {unit.type}
                 </span>
                 <span className="text-sm text-gray-500">
-                  {unit.floorAreaSqm} sqm &middot; Floor {unit.floor}
+                  Floor {unit.floor}
                 </span>
                 <span className="ml-auto flex items-baseline gap-3 whitespace-nowrap">
                   {onHold && (

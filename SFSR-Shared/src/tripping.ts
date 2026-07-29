@@ -13,6 +13,7 @@ import {
   addDoc,
   collection,
   doc,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -91,10 +92,17 @@ export function useTrippingRequests(status?: TrippingStatus) {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    // Capped: this collection only grows, and an unbounded live listener
+    // re-reads every request it matches each time it attaches.
     const base = collection(db, COLLECTIONS.TRIPPING);
     const q = status
-      ? query(base, where('status', '==', status), orderBy('preferredDate'))
-      : query(base, orderBy('preferredDate'));
+      ? query(
+          base,
+          where('status', '==', status),
+          orderBy('preferredDate'),
+          limit(200),
+        )
+      : query(base, orderBy('preferredDate'), limit(200));
 
     return onSnapshot(
       q,

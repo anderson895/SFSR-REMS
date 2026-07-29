@@ -14,10 +14,15 @@ interface Props {
 }
 
 export default function RequireStaff({ children, allow }: Props) {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, profileLoading } = useAuth();
 
   if (loading) return <p className="loading">Loading…</p>;
   if (!user) return <Navigate to="/login" replace />;
+
+  // Auth resolves before the profile document does. Without this the check
+  // below sees a null profile mid-flight and accuses every staff member of
+  // being unauthorised for a moment on every reload.
+  if (profileLoading) return <p className="loading">Loading…</p>;
 
   // A signed-in account with no profile document has no role, so it cannot be
   // trusted as staff.

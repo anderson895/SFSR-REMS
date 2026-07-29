@@ -3,8 +3,10 @@ import {
   type Reservation,
   ReservationStatus,
   db,
+  formatDate,
+  formatTime,
 } from '@sfsr/shared';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -18,9 +20,12 @@ export default function ReservationsPage() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
+    // Capped: an unbounded live listener re-reads every reservation on each
+    // attach, which during development means on every hot reload.
     const q = query(
       collection(db, COLLECTIONS.RESERVATIONS),
       orderBy('createdAt', 'desc'),
+      limit(200),
     );
     // Without an error callback a failed listener looks like an empty queue.
     return onSnapshot(
@@ -103,6 +108,7 @@ export default function ReservationsPage() {
             <tr>
               <th>Unit</th>
               <th>Buyer</th>
+              <th>Reserved on</th>
               <th>Source</th>
               <th>Status</th>
               <th />
@@ -111,7 +117,7 @@ export default function ReservationsPage() {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="empty">
+                <td colSpan={6} className="empty">
                   No reservations match the current filters.
                 </td>
               </tr>
@@ -123,6 +129,16 @@ export default function ReservationsPage() {
                     {r.buyer.firstName} {r.buyer.lastName}
                     <br />
                     <span className="cell-sub">{r.buyer.email}</span>
+                  </td>
+                  <td className="nowrap">
+                    {/* `reservationDate` is the business fact — when the buyer
+                        reserved. `createdAt` is the fallback for any record
+                        written before that field existed. */}
+                    {formatDate(r.reservationDate ?? r.createdAt)}
+                    <br />
+                    <span className="cell-sub">
+                      {formatTime(r.reservationDate ?? r.createdAt)}
+                    </span>
                   </td>
                   <td>
                     <span className="tag">

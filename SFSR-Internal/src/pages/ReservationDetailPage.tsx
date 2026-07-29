@@ -10,6 +10,7 @@ import {
   approveReservation,
   cancelReservation,
   db,
+  formatDateTime,
   fullNameOf,
   rejectReservation,
   requestAdditionalDocuments,
@@ -21,6 +22,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { usePromptDialog } from '../components/PromptDialog';
 import DocumentReviewItem from '../components/DocumentReviewItem';
 
 export default function ReservationDetailPage() {
@@ -37,6 +39,7 @@ export default function ReservationDetailPage() {
   const { documents } = useReservationDocuments(reservationId);
   const progress = requirementProgress(documents);
   const isAdmin = profile?.role === Role.ADMIN;
+  const { prompt, dialog } = usePromptDialog();
 
   useEffect(() => {
     if (!reservationId) return;
@@ -111,10 +114,17 @@ export default function ReservationDetailPage() {
     const suggested = progress.missing
       .map((type) => DOC_TYPE_LABELS[type])
       .join(', ');
-    const message = window.prompt(
-      'What does the buyer still need to submit?',
-      suggested ? `Please submit: ${suggested}.` : '',
-    );
+    const message = await prompt({
+      title: 'Request additional documents',
+      message:
+        'This is sent to the buyer and shown on their reservation. The unit ' +
+        'stays on hold — they are being asked for more paperwork, not turned ' +
+        'down.',
+      label: 'What does the buyer still need to submit?',
+      defaultValue: suggested ? `Please submit: ${suggested}.` : '',
+      confirmLabel: 'Send request',
+      required: true,
+    });
     if (message === null || message.trim() === '') return;
 
     setError('');
@@ -138,7 +148,16 @@ export default function ReservationDetailPage() {
 
   async function handleReject() {
     if (!user || !reservation) return;
-    const reason = window.prompt('Reason for rejection (shown to the buyer):');
+    const reason = await prompt({
+      title: `Reject reservation for ${reservation.unitLabel}?`,
+      message:
+        'The unit returns to the public listing immediately and the buyer is ' +
+        'told why. This cannot be undone.',
+      label: 'Reason for rejection (shown to the buyer)',
+      confirmLabel: 'Reject reservation',
+      destructive: true,
+      required: true,
+    });
     if (reason === null) return;
 
     setError('');
@@ -169,10 +188,16 @@ export default function ReservationDetailPage() {
    */
   async function handleCancel() {
     if (!user || !reservation) return;
-    const reason = window.prompt(
-      'Cancelling on the buyer\'s behalf releases the unit back to the market.\n\n' +
-        'Reason (shown to the buyer):',
-    );
+    const reason = await prompt({
+      title: `Cancel ${reservation.unitLabel} for the buyer?`,
+      message:
+        'Use this when the buyer withdraws — usually by phone. The unit is ' +
+        'released back to the market. Recorded as a cancellation, not a ' +
+        'rejection, so the trail does not show it as a company decision.',
+      label: 'Reason (shown to the buyer)',
+      confirmLabel: 'Cancel reservation',
+      destructive: true,
+    });
     if (reason === null) return;
 
     setError('');
@@ -198,6 +223,7 @@ export default function ReservationDetailPage() {
 
   return (
     <div className="stack">
+      {dialog}
       <Link to="/reservations" className="back-link">
         &larr; Back to reservations
       </Link>
@@ -250,7 +276,7 @@ export default function ReservationDetailPage() {
             <dl className="spec-list">
               <div>
                 <dt>Unit</dt>
-                <dd>{unit ? `${unit.building} — ${unit.unitNo}` : '—'}</dd>
+                <dd>{unit ? `${unit.projectName} — ${unit.unitNo}` : '—'}</dd>
               </div>
               <div>
                 <dt>Type</dt>
@@ -272,6 +298,20 @@ export default function ReservationDetailPage() {
                   )}
                 </dd>
               </div>
+              <div>
+                <dt>Reserved on</dt>
+                <dd>
+                  {formatDateTime(
+                    reservation.reservationDate ?? reservation.createdAt,
+                  )}
+                </dd>
+              </div>
+              {reservation.reviewedAt && (
+                <div>
+                  <dt>Reviewed on</dt>
+                  <dd>{formatDateTime(reservation.reviewedAt)}</dd>
+                </div>
+              )}
             </dl>
           </div>
         </div>

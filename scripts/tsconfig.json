@@ -1,0 +1,8 @@
+{
+  "//": "The maintenance scripts were previously outside every tsconfig, so npm run typecheck never saw them and real type errors sat in them unnoticed.",
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node", "vite/client"]
+  },
+  "include": [".", "../SFSR-Shared/src"]
+}

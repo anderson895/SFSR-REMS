@@ -23,7 +23,7 @@ import {
   serverTimestamp,
   writeBatch,
 } from 'firebase/firestore';
-import { buildSeedUnits } from './unitData';
+import { buildSeedCatalogue } from './unitData';
 
 // Node 22 can read a .env file without any dependency.
 process.loadEnvFile('.env');
@@ -62,19 +62,35 @@ async function main() {
     process.exit(0);
   }
 
-  const units = buildSeedUnits();
-  const batch = writeBatch(db);
-  for (const unit of units) {
-    batch.set(doc(unitsRef), {
-      ...unit,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+  const { projects, unitTypes, units } = buildSeedCatalogue();
+  const stamp = {
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  const metaBatch = writeBatch(db);
+  for (const { id, ...project } of projects) {
+    metaBatch.set(doc(db, 'projects', id), { ...project, ...stamp });
   }
-  await batch.commit();
+  for (const { id, ...type } of unitTypes) {
+    metaBatch.set(doc(db, 'unitTypes', id), { ...type, ...stamp });
+  }
+  await metaBatch.commit();
+
+  // The client SDK caps a batch at 500 writes, and the inventory now exceeds
+  // that, so the units are committed in chunks.
+  for (let i = 0; i < units.length; i += 400) {
+    const batch = writeBatch(db);
+    for (const unit of units.slice(i, i + 400)) {
+      batch.set(doc(unitsRef), { ...unit, ...stamp });
+    }
+    await batch.commit();
+  }
 
   const prices = units.map((u) => u.price);
-  console.log(`\nSeeded ${units.length} units.`);
+  console.log(
+    `\nSeeded ${projects.length} project(s), ${unitTypes.length} unit type(s), ${units.length} units.`,
+  );
   console.log(
     `  price range: PHP ${Math.min(...prices).toLocaleString()} - ${Math.max(...prices).toLocaleString()}`,
   );

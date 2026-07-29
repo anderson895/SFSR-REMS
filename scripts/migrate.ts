@@ -14,7 +14,7 @@
 
 import { FieldValue } from 'firebase-admin/firestore';
 import { PROJECT_ID, adminAuth, adminDb, explainCredentialError } from './adminApp';
-import { buildSeedUnits } from './unitData';
+import { buildSeedCatalogue } from './unitData';
 
 const [email, password, firstName = 'System', lastName = 'Administrator'] =
   process.argv.slice(2);
@@ -86,17 +86,30 @@ async function ensureUnits(): Promise<void> {
     return;
   }
 
-  const units = buildSeedUnits();
-  // Firestore caps a batch at 500 writes; the seed is well under that, but the
-  // chunking keeps this correct if the inventory grows later.
+  const { projects, unitTypes, units } = buildSeedCatalogue();
+  const stamp = {
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  // Projects and types use deterministic ids, so re-seeding updates them in
+  // place rather than creating a second copy of the same development.
+  const metaBatch = adminDb.batch();
+  for (const { id, ...project } of projects) {
+    metaBatch.set(adminDb.collection('projects').doc(id), { ...project, ...stamp });
+  }
+  for (const { id, ...type } of unitTypes) {
+    metaBatch.set(adminDb.collection('unitTypes').doc(id), { ...type, ...stamp });
+  }
+  await metaBatch.commit();
+  ok(`seeded ${projects.length} project(s) and ${unitTypes.length} unit type(s)`);
+
+  // Firestore caps a batch at 500 writes; the chunking keeps this correct as
+  // the inventory grows.
   for (let i = 0; i < units.length; i += 400) {
     const batch = adminDb.batch();
     for (const unit of units.slice(i, i + 400)) {
-      batch.set(adminDb.collection('units').doc(), {
-        ...unit,
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+      batch.set(adminDb.collection('units').doc(), { ...unit, ...stamp });
     }
     await batch.commit();
   }
@@ -110,7 +123,15 @@ async function ensureUnits(): Promise<void> {
 }
 
 async function report(): Promise<void> {
-  for (const name of ['users', 'units', 'reservations', 'documents', 'auditLogs']) {
+  for (const name of [
+    'users',
+    'projects',
+    'unitTypes',
+    'units',
+    'reservations',
+    'documents',
+    'auditLogs',
+  ]) {
     const count = (await adminDb.collection(name).count().get()).data().count;
     console.log(`  ${name.padEnd(14)} ${count}`);
   }

@@ -4,8 +4,27 @@ import { DocumentStatus, REQUIRED_DOC_TYPES } from '../constants';
 import { COLLECTIONS, db } from '../firebase';
 import type { DocumentRecord } from '../types';
 
-/** Live list of documents attached to one reservation. */
-export function useReservationDocuments(reservationId: string | undefined) {
+/**
+ * Live list of documents attached to one reservation.
+ *
+ * `buyerUid` must be supplied when the caller is the buyer themselves, and
+ * omitted when it is staff.
+ *
+ * Firestore rules are not filters. For a query, the server has to be able to
+ * *prove* every result is readable before it will run it — so the rule
+ * `resource.data.buyerUid == request.auth.uid` is only satisfiable if the
+ * query itself constrains `buyerUid`. Without it a buyer's listener fails with
+ * permission-denied while the same query succeeds for staff, whose `isStaff()`
+ * branch short-circuits the rule.
+ *
+ * That failure is easy to miss: documents this client just wrote are served
+ * from the local cache, so the list looks correct until the page is reloaded
+ * with a cold cache and silently empties.
+ */
+export function useReservationDocuments(
+  reservationId: string | undefined,
+  buyerUid?: string | null,
+) {
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -16,9 +35,12 @@ export function useReservationDocuments(reservationId: string | undefined) {
       return;
     }
 
+    const constraints = [where('reservationId', '==', reservationId)];
+    if (buyerUid) constraints.push(where('buyerUid', '==', buyerUid));
+
     const q = query(
       collection(db, COLLECTIONS.DOCUMENTS),
-      where('reservationId', '==', reservationId),
+      ...constraints,
       orderBy('uploadedAt'),
     );
 
@@ -30,6 +52,9 @@ export function useReservationDocuments(reservationId: string | undefined) {
         setDocuments(
           snap.docs.map((d) => ({ id: d.id, ...d.data() }) as DocumentRecord),
         );
+        // Cleared on success so a recovered listener stops reporting a stale
+        // failure.
+        setError('');
         setLoading(false);
       },
       (err) => {
@@ -37,7 +62,7 @@ export function useReservationDocuments(reservationId: string | undefined) {
         setLoading(false);
       },
     );
-  }, [reservationId]);
+  }, [reservationId, buyerUid]);
 
   return { documents, loading, error };
 }

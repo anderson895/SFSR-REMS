@@ -7,6 +7,7 @@
  * quality of the uploaded scan, exactly as noted in the study's limitations.
  */
 
+import { extractFields } from './extractFields';
 import type { Worker } from 'tesseract.js';
 import type { OcrResult } from './types';
 
@@ -90,55 +91,6 @@ async function renderPdfFirstPage(file: File): Promise<HTMLCanvasElement> {
 
   await page.render({ canvasContext: context, viewport }).promise;
   return canvas;
-}
-
-/** Pulls likely field values out of raw OCR text using layout-agnostic regexes. */
-function extractFields(rawText: string): OcrResult['extracted'] {
-  const lines = rawText
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  const extracted: OcrResult['extracted'] = {};
-
-  // A labelled name field, if the document has one.
-  for (const line of lines) {
-    const match = line.match(
-      /\b(?:NAME|PANGALAN|FULL NAME|REGISTERED OWNER|RECEIVED FROM)\b\s*[:\-]?\s*(.{3,60})/i,
-    );
-    if (match?.[1]) {
-      extracted.fullName = match[1].trim();
-      break;
-    }
-  }
-
-  // Fallback: the longest all-caps line is almost always the name on an ID.
-  if (!extracted.fullName) {
-    const capsLines = lines.filter(
-      (l) => /^[A-Z\s.,'-]{6,60}$/.test(l) && /[A-Z]{2,}/.test(l),
-    );
-    if (capsLines.length) {
-      extracted.fullName = capsLines.sort((a, b) => b.length - a.length)[0];
-    }
-  }
-
-  const idMatch = rawText.match(
-    /\b(?:ID|CRN|LICENSE|LIC|ACCOUNT|ACCT|REFERENCE|REF|REGISTRY|OR)\.?\s*(?:NO|NUMBER|#)\.?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-\s]{3,24})/i,
-  );
-  if (idMatch?.[1]) extracted.idNumber = idMatch[1].trim();
-
-  // Common Philippine date shapes: 01/02/2024, 2024-01-02, January 2, 2024.
-  const dateMatch = rawText.match(
-    /\b(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}|\d{4}-\d{2}-\d{2}|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\.?\s+\d{1,2},?\s+\d{4})\b/i,
-  );
-  if (dateMatch?.[1]) extracted.date = dateMatch[1].trim();
-
-  const addressMatch = rawText.match(
-    /\b(?:ADDRESS|TIRAHAN|SERVICE ADDRESS|RESIDENCE)\b\s*[:\-]?\s*(.{5,100})/i,
-  );
-  if (addressMatch?.[1]) extracted.address = addressMatch[1].trim();
-
-  return extracted;
 }
 
 /**

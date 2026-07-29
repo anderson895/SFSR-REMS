@@ -1,8 +1,9 @@
-import { COLLECTIONS, type Reservation, db } from '@sfsr/shared';
-import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { ExclamationCircleIcon } from '@heroicons/react/24/solid';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../auth/AuthContext';
+import {
+  useActionItems,
+  useMyReservations,
+} from '../reservations/useMyReservations';
 
 const STATUS_COPY: Record<string, string> = {
   pending: 'Submitted. Waiting for staff to begin review.',
@@ -13,24 +14,8 @@ const STATUS_COPY: Record<string, string> = {
 };
 
 export default function MyReservationsPage() {
-  const { user } = useAuth();
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!user) return;
-    const q = query(
-      collection(db, COLLECTIONS.RESERVATIONS),
-      where('buyerUid', '==', user.uid),
-      orderBy('createdAt', 'desc'),
-    );
-    return onSnapshot(q, (snap) => {
-      setReservations(
-        snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Reservation),
-      );
-      setLoading(false);
-    });
-  }, [user]);
+  const { reservations, loading } = useMyReservations();
+  const actions = useActionItems();
 
   if (loading) return <p className="loading">Loading your reservations…</p>;
 
@@ -50,40 +35,75 @@ export default function MyReservationsPage() {
     <>
       <div className="page-head">
         <h1>My reservations</h1>
-        <p>Track the status of each reservation and its requirements.</p>
+        <p>
+          {actions.count > 0 ? (
+            <>
+              <strong>{actions.count}</strong> need
+              {actions.count === 1 ? 's' : ''} something from you.
+            </>
+          ) : (
+            'Track the status of each reservation and its requirements.'
+          )}
+        </p>
       </div>
 
       <div className="stack">
-        {reservations.map((reservation) => (
-          <article key={reservation.id} className="res-card">
-            <header>
-              <div>
-                <h2>{reservation.unitLabel}</h2>
-                <p className="unit-card-sub">
-                  Reserved by {reservation.buyer.firstName}{' '}
-                  {reservation.buyer.lastName}
-                </p>
-              </div>
-              <span className={`status-pill status-res-${reservation.status}`}>
-                {reservation.status.replace('_', ' ')}
-              </span>
-            </header>
+        {reservations.map((reservation) => {
+          const needsAction = actions.flagged.has(reservation.id);
+          const rejected = actions.rejectedFor(reservation.id);
 
-            <p className="res-status-copy">
-              {STATUS_COPY[reservation.status] ?? ''}
-            </p>
+          return (
+            <article
+              key={reservation.id}
+              className={`res-card${needsAction ? ' needs-action' : ''}`}
+            >
+              <header>
+                <div>
+                  <h2>{reservation.unitLabel}</h2>
+                  <p className="unit-card-sub">
+                    Reserved by {reservation.buyer.firstName}{' '}
+                    {reservation.buyer.lastName}
+                  </p>
+                </div>
+                <span className={`status-pill status-res-${reservation.status}`}>
+                  {reservation.status.replace('_', ' ')}
+                </span>
+              </header>
 
-            {reservation.remarks && (
-              <p className="res-remarks">
-                <strong>Remarks:</strong> {reservation.remarks}
+              <p className="res-status-copy">
+                {STATUS_COPY[reservation.status] ?? ''}
               </p>
-            )}
 
-            <Link to={`/reservations/${reservation.id}`} className="btn">
-              View requirements
-            </Link>
-          </article>
-        ))}
+              {reservation.remarks && (
+                <p className="res-remarks">
+                  {/* The badge sits on the remark itself: that is the thing
+                      being flagged, and it is what the buyer has to act on. */}
+                  {needsAction && (
+                    <span className="action-badge">
+                      <ExclamationCircleIcon className="icon" />
+                      Action needed
+                    </span>
+                  )}
+                  <strong>Remarks:</strong> {reservation.remarks}
+                </p>
+              )}
+
+              {rejected > 0 && (
+                <p className="res-remarks">
+                  <span className="action-badge">
+                    <ExclamationCircleIcon className="icon" />
+                    {rejected} document{rejected === 1 ? '' : 's'} rejected
+                  </span>
+                  Open the reservation to see why and upload a replacement.
+                </p>
+              )}
+
+              <Link to={`/reservations/${reservation.id}`} className="btn">
+                View requirements
+              </Link>
+            </article>
+          );
+        })}
       </div>
     </>
   );

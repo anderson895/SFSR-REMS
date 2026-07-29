@@ -151,22 +151,75 @@ const THE_LEGASPI_PLACE: ProjectSpec = {
  */
 const PROJECTS: ProjectSpec[] = [THE_LEGASPI_PLACE];
 
-export interface SeedUnit {
-  projectName: string;
+/**
+ * Stable document ids derived from names.
+ *
+ * Deterministic on purpose: re-seeding updates the same project and type
+ * documents instead of creating duplicates, and `scripts/normalizeUnits.ts`
+ * derives identical ids when converting existing data, so the two paths agree.
+ */
+export const projectId = (name: string) => slug(name);
+export const unitTypeId = (project: string, type: string) =>
+  `${slug(project)}--${slug(type)}`;
+
+function slug(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+export interface SeedProject {
+  id: string;
+  name: string;
   location: string;
   building: string;
-  unitNo: string;
-  floor: number;
-  type: string;
-  floorAreaSqm: number;
-  price: number;
-  status: string;
   amenities: string[];
   images: string[];
+  description: string;
+}
+
+export interface SeedUnitType {
+  id: string;
+  projectId: string;
+  projectName: string;
+  type: string;
+  floorAreaSqm: number;
   floorPlanUrl: string;
+  images: string[];
   description: string;
   promo: string;
+  startingPrice: number;
+  endingPrice: number;
+  totalCount: number;
+  lowestFloor: number;
+  highestFloor: number;
+  sortOrder: number;
+}
+
+/**
+ * Only what actually varies from unit to unit.
+ *
+ * `projectName` and `type` are the two deliberate copies: the listing filters
+ * and labels on them, and duplicating two short strings is cheaper than two
+ * extra document reads per unit.
+ */
+export interface SeedUnit {
+  projectId: string;
+  typeId: string;
+  projectName: string;
+  type: string;
+  unitNo: string;
+  floor: number;
+  price: number;
+  status: string;
   heldBy: string | null;
+}
+
+export interface SeedCatalogue {
+  projects: SeedProject[];
+  unitTypes: SeedUnitType[];
+  units: SeedUnit[];
 }
 
 /**
@@ -193,28 +246,76 @@ function unitsPerFloor(spec: UnitTypeSpec): Map<number, number> {
   return counts;
 }
 
-/** Builds the inventory. Timestamps are added by the caller. */
-export function buildSeedUnits(): SeedUnit[] {
+/**
+ * Builds the catalogue in its normalised form.
+ *
+ * Project-wide facts (amenities, location, the building render) are emitted
+ * once as a project; per-layout facts (floor area, floor plan, description) are
+ * emitted once as a unit type. Only the things that genuinely differ — unit
+ * number, floor, price, status — are written per unit.
+ *
+ * Timestamps are added by the caller.
+ */
+export function buildSeedCatalogue(): SeedCatalogue {
+  const projects: SeedProject[] = [];
+  const unitTypes: SeedUnitType[] = [];
   const units: SeedUnit[] = [];
 
   for (const project of PROJECTS) {
     const hero = imageUrl(project.heroImage, project.heroCrop);
+    const pid = projectId(project.name);
+
+    projects.push({
+      id: pid,
+      name: project.name,
+      location: project.location,
+      building: project.building,
+      amenities: project.amenities,
+      images: [hero].filter(Boolean),
+      description: '',
+    });
 
     // Unit numbers run in one sequence per floor across all layouts, so a
     // buyer never sees two "1204"s on the same floor.
     const nextOnFloor = new Map<number, number>();
 
-    const allocations = project.unitTypes.map((spec) => ({
-      spec,
-      counts: unitsPerFloor(spec),
-      floorPlanUrl: imageUrl(spec.floorPlanImage),
-    }));
+    const allocations = project.unitTypes.map((spec, index) => {
+      const floorPlanUrl = imageUrl(spec.floorPlanImage);
+      const tid = unitTypeId(project.name, spec.type);
+      // The advertised range, computed from the spec rather than from the
+      // generated units, so it stays correct no matter how many of those units
+      // a page chooses to load.
+      const lowestPrice = spec.basePrice + spec.lowestFloor * project.premiumPerFloor;
+      const highestPrice =
+        spec.basePrice + spec.highestFloor * project.premiumPerFloor;
+
+      unitTypes.push({
+        id: tid,
+        projectId: pid,
+        projectName: project.name,
+        type: spec.type,
+        floorAreaSqm: spec.floorAreaSqm,
+        floorPlanUrl,
+        // The render sells the address; the floor plan sells the layout.
+        images: [hero, floorPlanUrl].filter(Boolean),
+        description: spec.description,
+        promo: project.promo,
+        startingPrice: lowestPrice,
+        endingPrice: highestPrice,
+        totalCount: spec.totalUnits,
+        lowestFloor: spec.lowestFloor,
+        highestFloor: spec.highestFloor,
+        sortOrder: index,
+      });
+
+      return { spec, tid, counts: unitsPerFloor(spec) };
+    });
 
     const lowest = Math.min(...project.unitTypes.map((t) => t.lowestFloor));
     const highest = Math.max(...project.unitTypes.map((t) => t.highestFloor));
 
     for (let floor = lowest; floor <= highest; floor++) {
-      for (const { spec, counts, floorPlanUrl } of allocations) {
+      for (const { spec, tid, counts } of allocations) {
         const count = counts.get(floor) ?? 0;
 
         for (let i = 0; i < count; i++) {
@@ -222,22 +323,14 @@ export function buildSeedUnits(): SeedUnit[] {
           nextOnFloor.set(floor, sequence);
 
           units.push({
+            projectId: pid,
+            typeId: tid,
             projectName: project.name,
-            location: project.location,
-            building: project.building,
+            type: spec.type,
             unitNo: `${floor}${String(sequence).padStart(2, '0')}`,
             floor,
-            type: spec.type,
-            floorAreaSqm: spec.floorAreaSqm,
             price: spec.basePrice + floor * project.premiumPerFloor,
             status: 'available',
-            amenities: project.amenities,
-            // The render sells the address; the floor plan sells the layout.
-            // Both belong on the card, in that order.
-            images: [hero, floorPlanUrl].filter(Boolean),
-            floorPlanUrl,
-            description: spec.description,
-            promo: floor >= project.promoFromFloor ? project.promo : '',
             heldBy: null,
           });
         }
@@ -245,5 +338,5 @@ export function buildSeedUnits(): SeedUnit[] {
     }
   }
 
-  return units;
+  return { projects, unitTypes, units };
 }

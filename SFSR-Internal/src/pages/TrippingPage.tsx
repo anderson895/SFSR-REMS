@@ -8,6 +8,7 @@ import {
 } from '@sfsr/shared';
 import { useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import { usePromptDialog } from '../components/PromptDialog';
 
 const FILTERS: { label: string; value: TrippingStatus | 'all' }[] = [
   { label: 'Pending', value: TrippingStatus.PENDING },
@@ -30,6 +31,7 @@ export default function TrippingPage() {
   );
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
+  const { prompt, dialog } = usePromptDialog();
 
   const { requests, loading } = useTrippingRequests(
     filter === 'all' ? undefined : filter,
@@ -43,7 +45,13 @@ export default function TrippingPage() {
 
     let note = '';
     if (status === TrippingStatus.CANCELLED) {
-      const reason = window.prompt('Reason for cancelling (for your records):');
+      const reason = await prompt({
+        title: `Cancel the site visit on ${request.preferredDate}?`,
+        message: `${request.fullName} requested ${request.preferredSlot} at ${request.projectName}. Nothing is reserved by a site visit, so this only frees the slot.`,
+        label: 'Reason (for your records)',
+        confirmLabel: 'Cancel site visit',
+        destructive: true,
+      });
       if (reason === null) return;
       note = reason;
     }
@@ -69,6 +77,7 @@ export default function TrippingPage() {
 
   return (
     <div className="stack">
+      {dialog}
       <div className="page-head">
         <h1>Site visit requests</h1>
         <p>Tripping bookings submitted through the public portal.</p>

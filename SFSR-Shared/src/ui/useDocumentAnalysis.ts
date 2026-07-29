@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { DocType } from '../constants';
+import type { DocType, IdType } from '../constants';
 import { saveDocumentAnalysis } from '../documents';
 import { type OcrProgress, runOcr } from '../ocr';
 import type { OcrResult, ValidationResult } from '../types';
@@ -30,37 +30,73 @@ const IDLE: AnalysisState = {
  * session is noticeably slower because Tesseract has to fetch and compile its
  * English model before it can read anything.
  */
+export interface AnalysisInput {
+  /** Front of the document — the side every check reads. */
+  file: File;
+  /** Reverse side, for IDs that carry data there. Optional. */
+  backFile?: File | null;
+  docType: DocType;
+  /** Which specific government ID, when docType is Valid ID. */
+  idType?: IdType | null;
+  registeredName: string;
+}
+
+export type AnalysisOutput = {
+  ocr: OcrResult;
+  backOcr: OcrResult | null;
+  validation: ValidationResult;
+};
+
 export function useDocumentAnalysis() {
   const [state, setState] = useState<AnalysisState>(IDLE);
 
-  const analyze = useCallback(
-    async (
-      documentId: string,
-      file: File,
-      docType: DocType,
-      registeredName: string,
-    ): Promise<{ ocr: OcrResult; validation: ValidationResult } | null> => {
+  /**
+   * Reads and validates a file without writing anything.
+   *
+   * Split out from `analyze` so a caller can find out whether a document is
+   * acceptable *before* committing to it. The reservation flow needs exactly
+   * that: it checks the buyer's ID first and only places the unit on hold once
+   * the ID passes, so a wrong document never takes a unit off the market.
+   *
+   * Tesseract runs entirely in the browser, so this costs no upload and no
+   * server round trip — the file never leaves the machine unless it passes.
+   */
+  const inspect = useCallback(
+    async ({
+      file,
+      backFile,
+      docType,
+      idType,
+      registeredName,
+    }: AnalysisInput): Promise<AnalysisOutput | null> => {
       setState({ ...IDLE, running: true, phase: 'starting' });
 
       try {
-        const ocr = await runOcr(file, (p: OcrProgress) =>
+        const track = (side: string) => (p: OcrProgress) =>
           setState((prev) => ({
             ...prev,
-            phase: p.status,
+            phase: backFile ? `${side} — ${p.status}` : p.status,
             progress: p.progress,
-          })),
-        );
+          }));
+
+        const ocr = await runOcr(file, track('front'));
+
+        // The worker is shared and already warm by now, so the second pass
+        // costs a fraction of the first.
+        const backOcr = backFile
+          ? await runOcr(backFile, track('back'))
+          : null;
 
         const validation = validateDocument({
           ocr,
+          backOcr,
           selectedType: docType,
+          selectedIdType: idType,
           registeredName,
         });
 
-        await saveDocumentAnalysis(documentId, ocr, validation);
-
         setState(IDLE);
-        return { ocr, validation };
+        return { ocr, backOcr, validation };
       } catch (error) {
         setState({
           ...IDLE,
@@ -74,7 +110,27 @@ export function useDocumentAnalysis() {
     [],
   );
 
-  return { ...state, analyze };
+  /** `inspect`, then persist the result against an existing document record. */
+  const analyze = useCallback(
+    async (
+      documentId: string,
+      input: AnalysisInput,
+    ): Promise<AnalysisOutput | null> => {
+      const result = await inspect(input);
+      if (!result) return null;
+
+      await saveDocumentAnalysis(
+        documentId,
+        result.ocr,
+        result.validation,
+        result.backOcr,
+      );
+      return result;
+    },
+    [inspect],
+  );
+
+  return { ...state, inspect, analyze };
 }
 
 /**

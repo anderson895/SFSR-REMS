@@ -1,4 +1,4 @@
-import {
+﻿import {
   ArrowUpTrayIcon,
   BuildingOffice2Icon,
   CalendarDaysIcon,
@@ -13,8 +13,8 @@ import { type ComponentType, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   formatPesoShort,
-  useBrowsableUnits,
-  useProjects,
+  useProjectSummaries,
+  useTypeSummaries,
 } from '../units/useUnits';
 
 const ANY = 'any';
@@ -22,16 +22,16 @@ const ANY = 'any';
 /**
  * Public landing page.
  *
- * Every figure shown here — unit counts, starting prices, unit types, project
- * names — is read live from Firestore rather than hard-coded. A brochure page
+ * Every figure shown here â€” unit counts, starting prices, unit types, project
+ * names â€” is read live from Firestore rather than hard-coded. A brochure page
  * that claims "34 available units" while the inventory says otherwise is worse
  * than no page at all, and this one cannot drift out of date.
  */
 export default function HomePage() {
-  // Counts and features only genuinely available units — a unit someone else
+  // Counts and features only genuinely available units â€” a unit someone else
   // is already processing should not be advertised as an option.
-  const { available: units, loading } = useBrowsableUnits();
-  const { projects } = useProjects();
+  const { summaries, totalAvailable, loading } = useTypeSummaries();
+  const { projects } = useProjectSummaries();
   const navigate = useNavigate();
 
   const [project, setProject] = useState(ANY);
@@ -40,12 +40,12 @@ export default function HomePage() {
   const [maxPrice, setMaxPrice] = useState('');
 
   const types = useMemo(
-    () => [...new Set(units.map((u) => u.type))],
-    [units],
+    () => [...new Set(summaries.map((s) => s.type))],
+    [summaries],
   );
 
-  const startingPrice = units.length
-    ? Math.min(...units.map((u) => u.price))
+  const startingPrice = summaries.length
+    ? Math.min(...summaries.map((s) => s.startingPrice))
     : 0;
 
   function handleSearch(event: React.FormEvent) {
@@ -157,10 +157,10 @@ export default function HomePage() {
         </button>
       </form>
 
-      {!loading && units.length > 0 && (
+      {!loading && totalAvailable > 0 && (
         <p className="mx-auto mt-4 w-[calc(100%-3rem)] max-w-[1180px] text-sm text-gray-500">
-          <strong className="text-brand">{units.length}</strong> units available
-          today &middot; starting at{' '}
+          <strong className="text-brand">{totalAvailable}</strong> units
+          available today &middot; starting at{' '}
           <strong className="text-brand">
             {formatPesoShort(startingPrice)}
           </strong>
@@ -230,7 +230,7 @@ export default function HomePage() {
  * arrows just nudge `scrollLeft`.
  */
 function ProjectCarousel() {
-  const { projects, loading } = useProjects();
+  const { projects, loading } = useProjectSummaries();
   const track = useRef<HTMLDivElement>(null);
 
   function scrollBy(direction: 1 | -1) {
@@ -241,7 +241,7 @@ function ProjectCarousel() {
   }
 
   if (loading) {
-    return <p className="py-8 text-center text-gray-500">Loading projects…</p>;
+    return <p className="py-8 text-center text-gray-500">Loading projectsâ€¦</p>;
   }
 
   if (projects.length === 0) {
@@ -312,7 +312,7 @@ function ProjectCarousel() {
 /**
  * Heroicons rather than emoji.
  *
- * Emoji render as a different glyph on every platform — and in colour, which
+ * Emoji render as a different glyph on every platform â€” and in colour, which
  * fights the palette instead of inheriting it. These are plain SVG that take
  * `currentColor`, so one CSS rule controls them all.
  */

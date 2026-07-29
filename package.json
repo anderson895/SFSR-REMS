@@ -11,7 +11,12 @@
     "build:portal": "npm --prefix SFSR-Portal run build",
     "build:internal": "npm --prefix SFSR-Internal run build",
     "build": "npm run build:portal && npm run build:internal",
-    "typecheck": "npm --prefix SFSR-Shared run typecheck && npm --prefix SFSR-Portal run typecheck && npm --prefix SFSR-Internal run typecheck",
+    "typecheck": "npm --prefix SFSR-Shared run typecheck && npm --prefix SFSR-Portal run typecheck && npm --prefix SFSR-Internal run typecheck && tsc -p scripts/tsconfig.json --noEmit",
+    "clone:emulator": "tsx scripts/cloneToEmulator.ts",
+    "normalize": "tsx scripts/normalizeUnits.ts",
+    "repair:catalogue": "tsx scripts/repairCatalogue.ts",
+    "seed:staff": "tsx scripts/seedStaff.ts",
+    "emulators": "firebase emulators:start --only auth,firestore --project sfsr-rems --import=.emulator-data --export-on-exit=.emulator-data",
     "migrate": "npm run deploy:rules && tsx scripts/migrate.ts",
     "migrate:data": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seedUnits.ts",
@@ -19,16 +24,22 @@
     "//reseed": "Destructive. Run directly, not via npm — PowerShell drops the `--` so the required --yes flag never arrives: npx tsx scripts/reseedUnits.ts --yes",
     "upload:images": "tsx scripts/uploadProjectImages.ts",
     "check:algorithms": "tsx scripts/checkAlgorithms.ts",
-    "check:rules": "tsx scripts/checkTrippingRules.ts && tsx scripts/checkCancelRules.ts",
+    "check:ids": "tsx scripts/checkIdValidation.ts",
+    "check:rules": "tsx scripts/checkPortalQueries.ts && tsx scripts/checkTrippingRules.ts && tsx scripts/checkCancelRules.ts",
+    "check:ocr": "tsx scripts/checkOcrOnImage.ts",
     "verify": "tsx --env-file=.env scripts/verify.ts",
     "diagnose": "tsx --env-file=.env scripts/diagnose.ts",
+    "inspect:units": "tsx --env-file=.env scripts/inspectUnits.ts",
+    "inspect:shape": "tsx --env-file=.env scripts/inspectShape.ts",
     "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes --project sfsr-rems",
     "deploy:portal": "npm run build:portal && firebase deploy --only hosting --project sfsr-rems"
   },
   "devDependencies": {
     "firebase": "^11.10.0",
     "firebase-admin": "^14.2.0",
+    "tesseract.js": "^7.0.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vite": "^6.4.3"
   }
 }

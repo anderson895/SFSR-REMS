@@ -1,7 +1,7 @@
-import { useProjects } from '../units/useUnits';
+﻿import { useProjectSummaries } from '../units/useUnits';
 
 export default function AboutPage() {
-  const { projects } = useProjects();
+  const { projects } = useProjectSummaries();
 
   return (
     <>
@@ -13,7 +13,7 @@ export default function AboutPage() {
       <section className="panel-card prose">
         <p>
           St. Francis Square Realty Corporation develops and sells residential
-          condominium units in Metro Manila. We handle the sale end to end —
+          condominium units in Metro Manila. We handle the sale end to end â€”
           from the first enquiry through documentary requirements to turnover.
         </p>
 
@@ -28,7 +28,7 @@ export default function AboutPage() {
         <p>
           Uploaded documents are read automatically and checked against the
           document type you selected and the name on your account. That check is
-          a recommendation to our staff, not a decision — every reservation is
+          a recommendation to our staff, not a decision â€” every reservation is
           reviewed by an authorised person before it is approved.
         </p>
 
@@ -39,7 +39,7 @@ export default function AboutPage() {
               {projects.map((p) => (
                 <li key={p.name}>
                   <strong>{p.name}</strong>
-                  {p.location && <> — {p.location}</>}
+                  {p.location && <> â€” {p.location}</>}
                 </li>
               ))}
             </ul>

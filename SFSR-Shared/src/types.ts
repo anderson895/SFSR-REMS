@@ -35,29 +35,96 @@ export const fullNameOf = (
   p: Pick<UserProfile, 'firstName' | 'middleName' | 'lastName'>,
 ): string => [p.firstName, p.middleName, p.lastName].filter(Boolean).join(' ');
 
-/** A condominium unit in the inventory. Collection: `units/{unitId}`. */
-export interface Unit {
+/**
+ * A development. Collection: `projects/{projectId}`.
+ *
+ * Everything true of the whole development rather than of any one unit lives
+ * here, stored once instead of once per unit.
+ */
+export interface Project {
   id: string;
-  projectName: string;
+  name: string;
   /** Where the project stands, e.g. "Legaspi Village, Makati City". */
-  location?: string;
+  location: string;
   building: string;
-  unitNo: string;
-  floor: number;
+  amenities: string[];
+  images: string[];
+  description?: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+/**
+ * One unit type within a project. Collection: `unitTypes/{typeId}`.
+ *
+ * A Studio's floor area, floor plan, and photographs are identical for all 120
+ * Studios, so they belong here rather than being copied onto each one. This is
+ * also what lets the catalogue render from a handful of documents instead of
+ * reading the entire inventory to summarise it.
+ */
+export interface UnitType {
+  id: string;
+  projectId: string;
+  /** Denormalised for labelling without a second lookup. */
+  projectName: string;
   /** e.g. "Studio", "1BR", "2BR", "3BR" */
   type: string;
   floorAreaSqm: number;
-  price: number;
-  status: UnitStatus;
-  amenities: string[];
-  images: string[];
   floorPlanUrl?: string;
+  images: string[];
   description?: string;
   promo?: string;
+  /**
+   * Facts about the whole set of units of this type.
+   *
+   * Stored here rather than derived from whatever units a page happens to have
+   * loaded. That distinction is the whole reason the catalogue broke once: a
+   * capped listener plus counts taken from the loaded documents reported 192 of
+   * 320 units and hid two unit types entirely. A page may show a subset; it may
+   * never describe the set from that subset.
+   */
+  startingPrice: number;
+  /** Price of the highest floor — the top of the advertised range. */
+  endingPrice: number;
+  /** How many units of this type exist, regardless of status. */
+  totalCount: number;
+  lowestFloor: number;
+  highestFloor: number;
+  /** Catalogue ordering; lower comes first. */
+  sortOrder: number;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+/**
+ * A condominium unit in the inventory. Collection: `units/{unitId}`.
+ *
+ * Reduced to what genuinely varies per unit. Amenities, images, floor plans,
+ * and descriptions moved to the project or the type: eight identical amenities
+ * repeated across 320 units cost 70 KB to say the same thing 320 times.
+ */
+export interface Unit {
+  id: string;
+  /** Reference to `projects/{projectId}`. */
+  projectId: string;
+  /** Reference to `unitTypes/{typeId}`. */
+  typeId: string;
+  unitNo: string;
+  floor: number;
+  price: number;
+  status: UnitStatus;
   /** Reservation currently holding this unit, if any. */
   heldBy: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+
+  /**
+   * Two denormalised copies are kept deliberately, so a unit can be listed,
+   * filtered, and labelled without joining two more documents first.
+   */
+  projectName: string;
+  /** e.g. "Studio", "1BR", "2BR", "3BR" */
+  type: string;
 }
 
 /** Buyer details captured at reservation time. */
@@ -156,6 +223,14 @@ export interface ValidationResult {
   idTypeMatch?: boolean | null;
   idTypeScore?: number;
   detectedIdType?: IdType | null;
+  /**
+   * Whether the two uploaded sides are genuinely different images.
+   *
+   * False when the buyer photographed the front twice, which is the common
+   * mistake and otherwise passes silently — the front is valid, so every other
+   * check succeeds. Null when no back was required.
+   */
+  backSideDistinct?: boolean | null;
   /** Stage 2 — does the name on the document match the registered buyer? */
   nameDistance: number;
   nameSimilarity: number;
@@ -174,13 +249,30 @@ export interface DocumentRecord {
   docType: DocType;
   /** Which government ID this is. Only set when docType is `valid_id`. */
   idType?: IdType | null;
+  /** Front of the card. The side every check reads. */
   fileUrl: string;
   publicId: string;
   mimeType: string;
   sizeBytes: number;
+  /**
+   * Reverse of the card, for IDs that carry data there — restrictions on a
+   * licence, address on a PhilSys card.
+   *
+   * Held on the same record rather than a second document, because the
+   * requirements checklist counts one approval per document type: two records
+   * would let staff approve the front and mark the ID complete with the back
+   * unreviewed.
+   */
+  backFileUrl?: string | null;
+  backPublicId?: string | null;
+  backMimeType?: string | null;
+  backSizeBytes?: number | null;
   uploadedBy: string;
   uploadedAt: Timestamp;
+  /** OCR of the front. */
   ocr: OcrResult | null;
+  /** OCR of the back, when one was supplied. */
+  backOcr?: OcrResult | null;
   validation: ValidationResult | null;
   status: DocumentStatus;
   reviewedBy?: string;

@@ -91,16 +91,60 @@ export async function signIn(
 
 export const signOutUser = (): Promise<void> => signOut(auth);
 
-/** Subscribes to auth changes, resolving the Firestore profile each time. */
-export function watchAuth(
-  callback: (state: { user: User | null; profile: UserProfile | null }) => void,
-): () => void {
-  return onAuthStateChanged(auth, async (user) => {
+/**
+ * Subscribes to auth changes, resolving the Firestore profile each time.
+ *
+ * Emits **twice** for a signed-in user: once the moment the session is known,
+ * and again when the profile document arrives.
+ *
+ * The previous single-emit version awaited Firestore before reporting
+ * anything, so every reload hid the whole account area through two sequential
+ * round trips — session restore, then a profile read. Auth alone is enough to
+ * know someone is signed in, and `user.displayName` carries their name in the
+ * token, so the UI can render immediately and refine afterwards.
+ */
+export interface AuthSnapshot {
+  user: User | null;
+  profile: UserProfile | null;
+  /**
+   * True between the two emits.
+   *
+   * Callers must not read a null `profile` as "this account has no profile
+   * document" while this is set — the Internal app refuses access on exactly
+   * that condition, and would flash "Access denied" at every staff member on
+   * every reload.
+   */
+  profileLoading: boolean;
+}
+
+export function watchAuth(callback: (state: AuthSnapshot) => void): () => void {
+  // Guards against a slow profile read landing after the user has signed out
+  // or switched accounts, which would restore a stale identity.
+  let generation = 0;
+
+  return onAuthStateChanged(auth, (user) => {
+    const current = ++generation;
+
     if (!user) {
-      callback({ user: null, profile: null });
+      callback({ user: null, profile: null, profileLoading: false });
       return;
     }
-    callback({ user, profile: await fetchProfile(user.uid) });
+
+    callback({ user, profile: null, profileLoading: true });
+
+    void fetchProfile(user.uid)
+      .then((profile) => {
+        if (current === generation) {
+          callback({ user, profile, profileLoading: false });
+        }
+      })
+      .catch(() => {
+        // The session is still valid, so the app stays signed in on
+        // token-only details rather than appearing logged out.
+        if (current === generation) {
+          callback({ user, profile: null, profileLoading: false });
+        }
+      });
   });
 }
 

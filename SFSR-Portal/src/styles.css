@@ -418,6 +418,22 @@
     @apply mt-2 w-full rounded-md bg-canvas p-2.5 text-sm;
   }
 
+  /* Flags outstanding work, not unread text — it clears when the work is
+     done, so it cannot go stale the way a "seen" flag does. */
+  .action-badge {
+    @apply mr-2 inline-flex items-center gap-1 rounded-full bg-red-100
+           px-2 py-0.5 align-middle text-[0.7rem] font-bold uppercase
+           tracking-wide text-red-700;
+  }
+
+  .action-badge .icon {
+    @apply size-3.5;
+  }
+
+  .res-card.needs-action {
+    @apply border-red-200;
+  }
+
   .checklist {
     @apply m-0 list-none p-0;
   }
@@ -661,4 +677,79 @@
   .analysis-foot {
     @apply mt-3.5 text-[0.74rem] italic text-gray-500;
   }
+}
+
+/* --- upload queue -------------------------------------------------------
+   Documents are added to a list first and uploaded in one pass, so a walk-in's
+   whole stack of paperwork is queued once instead of waiting through a full
+   OCR run between each file. */
+
+.upload-queue {
+  list-style: none;
+  margin: 1rem 0;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.upload-queue-item {
+  padding: 0.7rem 0.9rem;
+  font-size: 0.86rem;
+}
+
+.upload-queue-item + .upload-queue-item {
+  border-top: 1px solid #e5e7eb;
+}
+
+.upload-queue-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.upload-queue-file {
+  color: #6b7280;
+  font-size: 0.8rem;
+  word-break: break-all;
+}
+
+.upload-queue-status {
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.upload-queue-item.is-queued .upload-queue-status {
+  color: #6b7280;
+}
+
+.upload-queue-item.is-uploading .upload-queue-status,
+.upload-queue-item.is-scanning .upload-queue-status {
+  color: #b45309;
+}
+
+.upload-queue-item.is-done {
+  background: #f0fdf4;
+}
+
+.upload-queue-item.is-done .upload-queue-status {
+  color: #15803d;
+}
+
+.upload-queue-item.is-failed {
+  background: #fef2f2;
+}
+
+.upload-queue-item.is-failed .upload-queue-status {
+  color: #b91c1c;
+}
+
+.upload-queue-item .progress {
+  margin-top: 0.5rem;
+  margin-bottom: 0;
 }

@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom';
-import { formatPesoShort, useProjects } from '../units/useUnits';
+﻿import { Link } from 'react-router-dom';
+import { formatPesoShort, useProjectSummaries } from '../units/useUnits';
 
 /**
  * Browse by development rather than by unit.
@@ -9,10 +9,10 @@ import { formatPesoShort, useProjects } from '../units/useUnits';
  * filter dropdown on a list of 900 units.
  */
 export default function ProjectsPage() {
-  const { projects, loading, error } = useProjects();
+  const { projects, loading, error } = useProjectSummaries();
 
   if (loading) {
-    return <p className="py-8 text-center text-gray-500">Loading projects…</p>;
+    return <p className="py-8 text-center text-gray-500">Loading projectsâ€¦</p>;
   }
 
   if (error) {

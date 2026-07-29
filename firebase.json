@@ -13,5 +13,12 @@
         "destination": "/index.html"
       }
     ]
+  },
+  "emulators": {
+    "//": "Local Firebase for development. Costs no quota, and enforces the same firestore.rules as production.",
+    "auth": { "port": 9099 },
+    "firestore": { "port": 8080 },
+    "ui": { "enabled": true, "port": 4000 },
+    "singleProjectMode": true
   }
 }

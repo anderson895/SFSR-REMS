@@ -18,6 +18,9 @@ dist/
 # Firebase
 .firebase/
 firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.emulator-data/
 
 # Editor / OS
 .vscode/

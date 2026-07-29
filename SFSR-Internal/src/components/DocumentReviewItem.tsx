@@ -1,5 +1,6 @@
 import {
   DOC_TYPE_LABELS,
+  ID_TYPE_LABELS,
   type DocumentRecord,
   DocumentStatus,
   ValidationPanel,
@@ -11,6 +12,7 @@ import {
 } from '@sfsr/shared';
 import { useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import { usePromptDialog } from './PromptDialog';
 
 interface Props {
   document: DocumentRecord;
@@ -27,6 +29,7 @@ export default function DocumentReviewItem({ document, registeredName }: Props) 
   const analysis = useDocumentAnalysis();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const { prompt, dialog } = usePromptDialog();
 
   const decided = document.status !== DocumentStatus.PENDING;
 
@@ -41,12 +44,15 @@ export default function DocumentReviewItem({ document, registeredName }: Props) 
     setError('');
     try {
       const file = await fetchStoredFile(document.fileUrl, document.mimeType);
-      await analysis.analyze(
-        document.id,
+      // The ID subtype recorded at upload is passed back in, so a re-scan is
+      // held to the same standard as the original. Dropping it would quietly
+      // make the staff re-check weaker than the buyer's own upload.
+      await analysis.analyze(document.id, {
         file,
-        document.docType,
+        docType: document.docType,
+        idType: document.idType,
         registeredName,
-      );
+      });
 
       if (user) {
         await writeAuditLog({
@@ -65,11 +71,21 @@ export default function DocumentReviewItem({ document, registeredName }: Props) 
   async function decide(status: Exclude<DocumentStatus, 'pending'>) {
     if (!user) return;
 
-    const note =
-      status === DocumentStatus.REJECTED
-        ? (window.prompt('Reason for rejecting this document:') ?? '')
-        : '';
-    if (status === DocumentStatus.REJECTED && note === '') return;
+    let note = '';
+    if (status === DocumentStatus.REJECTED) {
+      const reason = await prompt({
+        title: `Reject this ${DOC_TYPE_LABELS[document.docType]}?`,
+        message:
+          'The buyer sees this note and can upload a replacement. The ' +
+          'reservation itself is not affected.',
+        label: 'Reason for rejecting this document',
+        confirmLabel: 'Reject document',
+        destructive: true,
+        required: true,
+      });
+      if (reason === null || reason.trim() === '') return;
+      note = reason;
+    }
 
     setError('');
     setBusy(true);
@@ -95,12 +111,21 @@ export default function DocumentReviewItem({ document, registeredName }: Props) 
 
   return (
     <article className="review-item">
+      {dialog}
       <header className="review-head">
         <div>
-          <h3>{DOC_TYPE_LABELS[document.docType]}</h3>
+          <h3>
+            {DOC_TYPE_LABELS[document.docType]}
+            {document.idType && (
+              <span className="cell-sub"> — {ID_TYPE_LABELS[document.idType]}</span>
+            )}
+          </h3>
           <p className="cell-sub">
             {(document.sizeBytes / 1024).toFixed(0)} KB &middot;{' '}
             {document.mimeType}
+            {document.backSizeBytes != null && (
+              <> &middot; back {(document.backSizeBytes / 1024).toFixed(0)} KB</>
+            )}
           </p>
         </div>
         <div className="doc-item-right">
@@ -113,8 +138,21 @@ export default function DocumentReviewItem({ document, registeredName }: Props) 
             rel="noreferrer"
             className="btn"
           >
-            Open file
+            {document.backFileUrl ? 'Open front' : 'Open file'}
           </a>
+          {/* Reviewing only the front would leave half the card unseen — the
+              restrictions on a licence and the address on a PhilSys card are
+              both on the back. */}
+          {document.backFileUrl && (
+            <a
+              href={document.backFileUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="btn"
+            >
+              Open back
+            </a>
+          )}
         </div>
       </header>
 
