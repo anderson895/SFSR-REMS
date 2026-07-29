@@ -1,10 +1,12 @@
 import type { Timestamp } from 'firebase/firestore';
+import type { ConsentRecord } from './legal';
 import type {
   AccountType,
   DocType,
   DocumentStatus,
   ReservationSource,
   IdType,
+  PaymentChannel,
   ReservationStatus,
   Role,
   TrippingStatus,
@@ -26,6 +28,14 @@ export interface UserProfile {
   birthDate?: string;
   /** Employees only — the department shown in the internal app. */
   department?: string;
+  /**
+   * Privacy and terms consent captured at registration.
+   *
+   * Required by the Data Privacy Act of 2012: the company has to be able to
+   * show not only that consent was given, but which wording was consented to
+   * and when.
+   */
+  consent?: ConsentRecord;
   active: boolean;
   createdAt: Timestamp;
 }
@@ -162,6 +172,18 @@ export interface Reservation {
   cancelledBy?: string;
   cancelledAt?: Timestamp;
   remarks?: string;
+
+  /**
+   * The buyer's declaration and acceptance of the reservation terms.
+   *
+   * Stored on the reservation rather than the account because the terms are
+   * agreed to per application: a buyer who reserves twice accepts twice, and
+   * the wording may have changed between them.
+   *
+   * Optional so that walk-in records filed by staff, and any reservation made
+   * before this was captured, still load.
+   */
+  declaration?: ConsentRecord;
 }
 
 /**
@@ -278,6 +300,25 @@ export interface DocumentRecord {
   reviewedBy?: string;
   reviewedAt?: Timestamp;
   reviewNote?: string;
+
+  /**
+   * Present only on a Proof of Reservation Payment.
+   *
+   * A receipt image alone cannot be reconciled: Billing needs the channel it
+   * came through, the reference the channel issued, the amount, and the date
+   * the payer says it was made. OCR may later confirm these against the image,
+   * but what the buyer declared is a separate fact worth keeping.
+   */
+  payment?: PaymentDetails;
+}
+
+/** What the payer declares alongside a receipt. */
+export interface PaymentDetails {
+  /** ISO date, as declared by the payer. */
+  paidOn: string;
+  referenceNo: string;
+  channel: PaymentChannel;
+  amount: number;
 }
 
 /** Immutable activity record. Collection: `auditLogs/{id}`. */

@@ -28,6 +28,7 @@ import {
   UnitStatus,
 } from './constants';
 import { COLLECTIONS, db } from './firebase';
+import type { ConsentRecord } from './legal';
 import type { BuyerSnapshot, Unit } from './types';
 
 /** Thrown when the unit was taken between page load and submission. */
@@ -51,6 +52,8 @@ export interface CreateReservationInput {
   /** UID of whoever is performing the action (the buyer, or staff). */
   createdBy: string;
   remarks?: string;
+  /** The buyer's declaration and acceptance of the reservation terms. */
+  declaration?: ConsentRecord;
 }
 
 /**
@@ -98,6 +101,7 @@ export async function createReservation(
         createdBy: input.createdBy,
         createdAt: serverTimestamp(),
         remarks: input.remarks ?? '',
+        declaration: input.declaration ?? null,
       });
     });
   } catch (error) {

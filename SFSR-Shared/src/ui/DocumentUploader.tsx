@@ -7,7 +7,10 @@ import {
   ID_TYPE_LABELS,
   type IdType,
   MAX_UPLOAD_BYTES,
+  PAYMENT_CHANNEL_LABELS,
+  PaymentChannel,
 } from '../constants';
+import type { PaymentDetails } from '../types';
 import { writeAuditLog } from '../audit';
 import { uploadToCloudinary, validateFile } from '../cloudinary';
 import { createDocumentRecord } from '../documents';
@@ -37,11 +40,20 @@ interface QueuedDocument {
   idType: IdType | null;
   file: File;
   backFile: File | null;
+  /** Only for a Proof of Reservation Payment. */
+  payment: PaymentDetails | null;
   status: ItemStatus;
   /** 0..1 while uploading. */
   progress: number;
   error: string;
 }
+
+const EMPTY_PAYMENT = {
+  paidOn: '',
+  referenceNo: '',
+  channel: '' as PaymentChannel | '',
+  amount: '',
+};
 
 const STATUS_LABEL: Record<ItemStatus, string> = {
   queued: 'Waiting',
@@ -86,7 +98,10 @@ export function DocumentUploader({
   const [idType, setIdType] = useState<IdType | ''>('');
   const [file, setFile] = useState<File | null>(null);
   const [backFile, setBackFile] = useState<File | null>(null);
+  const [payment, setPayment] = useState(EMPTY_PAYMENT);
   const [error, setError] = useState('');
+
+  const isProofOfPayment = docType === DocType.PROOF_OF_PAYMENT;
 
   const analysis = useDocumentAnalysis();
 
@@ -130,6 +145,20 @@ export function DocumentUploader({
       setError('Upload the back of the ID as well.');
       return;
     }
+    // A receipt image on its own cannot be reconciled: Billing matches against
+    // a per-channel feed, and needs the reference the channel issued.
+    if (isProofOfPayment) {
+      if (!payment.paidOn || !payment.referenceNo || !payment.channel) {
+        setError(
+          'Enter the payment date, reference number, and payment channel.',
+        );
+        return;
+      }
+      if (!Number(payment.amount)) {
+        setError('Enter the amount paid.');
+        return;
+      }
+    }
 
     setQueue((current) => [
       ...current,
@@ -139,6 +168,14 @@ export function DocumentUploader({
         idType: docType === DocType.VALID_ID ? (idType as IdType) : null,
         file,
         backFile,
+        payment: isProofOfPayment
+          ? {
+              paidOn: payment.paidOn,
+              referenceNo: payment.referenceNo.trim(),
+              channel: payment.channel as PaymentChannel,
+              amount: Number(payment.amount),
+            }
+          : null,
         status: 'queued',
         progress: 0,
         error: '',
@@ -150,6 +187,7 @@ export function DocumentUploader({
     setIdType('');
     setFile(null);
     setBackFile(null);
+    setPayment(EMPTY_PAYMENT);
     (event.target as HTMLFormElement).reset();
   }
 
@@ -182,6 +220,7 @@ export function DocumentUploader({
       backPublicId: uploadedBack?.publicId ?? null,
       backMimeType: uploadedBack?.mimeType ?? null,
       backSizeBytes: uploadedBack?.sizeBytes ?? null,
+      payment: item.payment,
       uploadedBy,
     });
 
@@ -308,6 +347,80 @@ export function DocumentUploader({
               ))}
             </select>
           </label>
+        )}
+
+        {/* A receipt says an amount was paid; it does not say through which
+            channel, under which reference, or on which date the payer claims
+            it happened. Billing reconciles on those three. */}
+        {isProofOfPayment && (
+          <>
+            <div className="uploader-row">
+              <label>
+                Payment date
+                <input
+                  type="date"
+                  value={payment.paidOn}
+                  onChange={(e) =>
+                    setPayment({ ...payment, paidOn: e.target.value })
+                  }
+                  required
+                  disabled={running}
+                />
+              </label>
+
+              <label>
+                Reference number
+                <input
+                  value={payment.referenceNo}
+                  placeholder="As printed on the receipt"
+                  onChange={(e) =>
+                    setPayment({ ...payment, referenceNo: e.target.value })
+                  }
+                  required
+                  disabled={running}
+                />
+              </label>
+            </div>
+
+            <div className="uploader-row">
+              <label>
+                Payment channel
+                <select
+                  value={payment.channel}
+                  onChange={(e) =>
+                    setPayment({
+                      ...payment,
+                      channel: e.target.value as PaymentChannel,
+                    })
+                  }
+                  required
+                  disabled={running}
+                >
+                  <option value="">Select how it was paid…</option>
+                  {Object.values(PaymentChannel).map((channel) => (
+                    <option key={channel} value={channel}>
+                      {PAYMENT_CHANNEL_LABELS[channel]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Amount paid
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={payment.amount}
+                  onChange={(e) =>
+                    setPayment({ ...payment, amount: e.target.value })
+                  }
+                  required
+                  disabled={running}
+                />
+              </label>
+            </div>
+          </>
         )}
 
         <p className="uploader-hint">

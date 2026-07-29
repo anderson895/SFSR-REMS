@@ -207,6 +207,33 @@ export const REQUIRED_DOC_TYPES: DocType[] = [
   DocType.PROOF_OF_PAYMENT,
 ];
 
+/**
+ * How a reservation fee was paid, from the reservation specification.
+ *
+ * Captured with the receipt because the receipt alone does not say which
+ * channel produced it, and Billing reconciles against a bank or wallet feed
+ * per channel.
+ */
+export const PaymentChannel = {
+  BANK_DEPOSIT: 'bank_deposit',
+  ONLINE_BANKING: 'online_banking',
+  GCASH: 'gcash',
+  MAYA: 'maya',
+  CHECK: 'check',
+  CASH: 'cash',
+} as const;
+export type PaymentChannel =
+  (typeof PaymentChannel)[keyof typeof PaymentChannel];
+
+export const PAYMENT_CHANNEL_LABELS: Record<PaymentChannel, string> = {
+  [PaymentChannel.BANK_DEPOSIT]: 'Bank Deposit',
+  [PaymentChannel.ONLINE_BANKING]: 'Online Banking',
+  [PaymentChannel.GCASH]: 'GCash',
+  [PaymentChannel.MAYA]: 'Maya',
+  [PaymentChannel.CHECK]: 'Check',
+  [PaymentChannel.CASH]: 'Cash',
+};
+
 /** Upload constraints taken from the manuscript's Scope and Limitation. */
 export const MAX_UPLOAD_BYTES = 3 * 1024 * 1024; // 3 MB
 export const ACCEPTED_MIME_TYPES = [

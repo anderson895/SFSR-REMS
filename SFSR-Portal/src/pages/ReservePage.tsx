@@ -1,7 +1,10 @@
 import {
   ACCEPTED_ID_TYPES,
   ACCEPTED_MIME_TYPES,
+  BUYER_DECLARATIONS,
   DocType,
+  RESERVATION_TERMS,
+  buildConsent,
   ID_TYPE_LABELS,
   type IdType,
   MAX_UPLOAD_BYTES,
@@ -70,7 +73,18 @@ export default function ReservePage() {
    * alarming.
    */
   const [ownHold, setOwnHold] = useState('');
+  /** Ticked items from the buyer's declaration; all are required to submit. */
+  const [declared, setDeclared] = useState<string[]>([]);
   const analysis = useDocumentAnalysis();
+
+  const allDeclared = BUYER_DECLARATIONS.every((d) => declared.includes(d.id));
+
+  const toggleDeclaration = (id: string) =>
+    setDeclared((current) =>
+      current.includes(id)
+        ? current.filter((d) => d !== id)
+        : [...current, id],
+    );
 
   useEffect(() => {
     if (!profile) return;
@@ -204,6 +218,9 @@ export default function ReservePage() {
         buyerUid: user.uid,
         source: ReservationSource.ONLINE,
         createdBy: user.uid,
+        // Recorded per application, with the wording version, because the terms
+        // are agreed to for this reservation and may change before the next.
+        declaration: buildConsent(declared),
       });
 
       // Claim the hold before anything else can re-render: the live unit
@@ -459,9 +476,46 @@ export default function ReservePage() {
         {analysis.error && <p className="field-error">{analysis.error}</p>}
         {idVerdict && <p className="field-note">{idVerdict}</p>}
 
-        <button type="submit" className="btn btn-primary" disabled={busy}>
+        <section className="terms">
+          <h2>Reservation Terms and Conditions</h2>
+          {/* Scrollable rather than collapsed: the terms have to be present on
+              the page that submits them, not one click away behind a link the
+              buyer can plausibly say they never opened. */}
+          <ol className="terms-list">
+            {RESERVATION_TERMS.map((term) => (
+              <li key={term}>{term}</li>
+            ))}
+          </ol>
+        </section>
+
+        <fieldset className="consent">
+          <legend>Buyer's Declaration</legend>
+          {BUYER_DECLARATIONS.map((item) => (
+            <label key={item.id} className="check-line">
+              <input
+                type="checkbox"
+                checked={declared.includes(item.id)}
+                onChange={() => toggleDeclaration(item.id)}
+              />
+              {item.text}
+            </label>
+          ))}
+        </fieldset>
+
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={busy || !allDeclared}
+        >
           {busy ? 'Checking ID and reserving…' : 'Submit reservation'}
         </button>
+
+        {!allDeclared && (
+          <p className="hint">
+            Every item in the declaration must be ticked before the reservation
+            can be submitted.
+          </p>
+        )}
       </form>
     </div>
   );

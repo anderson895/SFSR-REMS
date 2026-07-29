@@ -17,6 +17,7 @@ import {
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { AccountType, Role } from './constants';
 import { COLLECTIONS, auth, db, getAdminWorkerAuth } from './firebase';
+import type { ConsentRecord } from './legal';
 import { fullNameOf, type UserProfile } from './types';
 
 export interface RegisterBuyerInput {
@@ -28,6 +29,8 @@ export interface RegisterBuyerInput {
   mobile?: string;
   address?: string;
   birthDate?: string;
+  /** Privacy and terms consent, required by the Data Privacy Act of 2012. */
+  consent?: ConsentRecord;
 }
 
 /** Fetches the Firestore profile for a signed-in user, or null if absent. */
@@ -67,6 +70,9 @@ export async function registerBuyer(
     address: input.address ?? '',
     birthDate: input.birthDate ?? '',
     active: true,
+    // Stored in the same document as the account it authorises, so the consent
+    // record cannot drift away from what it applies to.
+    consent: input.consent ?? null,
     createdAt: serverTimestamp(),
   };
 

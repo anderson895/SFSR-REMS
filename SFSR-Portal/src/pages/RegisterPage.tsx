@@ -1,5 +1,11 @@
-import { authErrorMessage, registerBuyer } from '@sfsr/shared';
-import { type FormEvent, useState } from 'react';
+import {
+  REGISTRATION_CONSENTS,
+  authErrorMessage,
+  buildConsent,
+  checkPassword,
+  registerBuyer,
+} from '@sfsr/shared';
+import { type FormEvent, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 const EMPTY = {
@@ -24,22 +30,42 @@ const EMPTY = {
 export default function RegisterPage() {
   const navigate = useNavigate();
   const [form, setForm] = useState(EMPTY);
+  const [consents, setConsents] = useState<string[]>([]);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   const set = (key: keyof typeof EMPTY) => (value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  const password = useMemo(() => checkPassword(form.password), [form.password]);
+  const allConsented = REGISTRATION_CONSENTS.every((c) =>
+    consents.includes(c.id),
+  );
+
+  const toggleConsent = (id: string) =>
+    setConsents((current) =>
+      current.includes(id)
+        ? current.filter((c) => c !== id)
+        : [...current, id],
+    );
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError('');
 
+    // Checked here as well as in the disabled button: a disabled control is a
+    // convenience, not a guarantee.
+    if (!password.valid) {
+      setError(`Password needs: ${password.firstProblem}.`);
+      return;
+    }
     if (form.password !== form.confirmPassword) {
       setError('The two passwords do not match.');
       return;
     }
-    if (form.password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (!allConsented) {
+      setError('All three statements must be agreed to before continuing.');
       return;
     }
 
@@ -54,6 +80,9 @@ export default function RegisterPage() {
         mobile: form.mobile,
         address: form.address,
         birthDate: form.birthDate,
+        // Recorded with the wording version and a timestamp, which is what the
+        // Data Privacy Act asks the company to be able to produce.
+        consent: buildConsent(consents),
       });
       navigate('/', { replace: true });
     } catch (err) {
@@ -147,7 +176,7 @@ export default function RegisterPage() {
           <label>
             Password
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={form.password}
               autoComplete="new-password"
               required
@@ -157,7 +186,7 @@ export default function RegisterPage() {
           <label>
             Confirm password
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={form.confirmPassword}
               autoComplete="new-password"
               required
@@ -166,7 +195,44 @@ export default function RegisterPage() {
           </label>
         </div>
 
-        <button type="submit" className="btn btn-primary" disabled={busy}>
+        <label className="check-line">
+          <input
+            type="checkbox"
+            checked={showPassword}
+            onChange={(e) => setShowPassword(e.target.checked)}
+          />
+          Show password
+        </label>
+
+        {/* Live, so the requirements are met as they are typed instead of
+            being discovered on submit. */}
+        <ul className="rule-list">
+          {password.results.map(({ rule, passed }) => (
+            <li key={rule.id} className={passed ? 'is-met' : ''}>
+              <span aria-hidden>{passed ? '✓' : '○'}</span> {rule.label}
+            </li>
+          ))}
+        </ul>
+
+        <fieldset className="consent">
+          <legend>Privacy consent</legend>
+          {REGISTRATION_CONSENTS.map((consent) => (
+            <label key={consent.id} className="check-line">
+              <input
+                type="checkbox"
+                checked={consents.includes(consent.id)}
+                onChange={() => toggleConsent(consent.id)}
+              />
+              {consent.text}
+            </label>
+          ))}
+        </fieldset>
+
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={busy || !password.valid || !allConsented}
+        >
           {busy ? 'Creating account…' : 'Create account'}
         </button>
       </form>

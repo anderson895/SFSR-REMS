@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore';
 import { type DocType, DocumentStatus, type IdType } from './constants';
 import { COLLECTIONS, db } from './firebase';
-import type { OcrResult, ValidationResult } from './types';
+import type { OcrResult, PaymentDetails, ValidationResult } from './types';
 
 export interface CreateDocumentInput {
   reservationId: string;
@@ -34,6 +34,8 @@ export interface CreateDocumentInput {
   backMimeType?: string | null;
   backSizeBytes?: number | null;
   uploadedBy: string;
+  /** Present only on a Proof of Reservation Payment. */
+  payment?: PaymentDetails | null;
 }
 
 export async function createDocumentRecord(
@@ -48,6 +50,9 @@ export async function createDocumentRecord(
     backPublicId: input.backPublicId ?? null,
     backMimeType: input.backMimeType ?? null,
     backSizeBytes: input.backSizeBytes ?? null,
+    // What the payer declared. Kept apart from anything OCR later reads off the
+    // receipt, so Billing can compare the two rather than trust one.
+    payment: input.payment ?? null,
     ocr: null,
     backOcr: null,
     validation: null,

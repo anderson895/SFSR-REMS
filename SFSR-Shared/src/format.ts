@@ -4,12 +4,31 @@
 
 import type { Timestamp } from 'firebase/firestore';
 
-/** Anything Firestore might hand back for a timestamp field. */
-type MaybeTimestamp = Timestamp | { seconds: number } | Date | null | undefined;
+/**
+ * Anything a date might arrive as.
+ *
+ * Firestore timestamps for server-written fields, and plain ISO strings for the
+ * dates a person typed — a payment date, the moment consent was given. Both end
+ * up in the same tables, so both are accepted here rather than making every
+ * caller remember which is which.
+ */
+type MaybeTimestamp =
+  | Timestamp
+  | { seconds: number }
+  | Date
+  | string
+  | null
+  | undefined;
 
 function toDate(value: MaybeTimestamp): Date | null {
   if (!value) return null;
   if (value instanceof Date) return value;
+
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
   if (typeof (value as Timestamp).toDate === 'function') {
     return (value as Timestamp).toDate();
   }

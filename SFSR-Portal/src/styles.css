@@ -753,3 +753,89 @@
   margin-top: 0.5rem;
   margin-bottom: 0;
 }
+
+/* --- consent, declarations, terms --------------------------------------
+   Legal statements are shown on the page that submits them, not behind a link
+   a buyer can plausibly say they never opened. */
+
+.check-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin-bottom: 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #374151;
+}
+
+.check-line input[type='checkbox'] {
+  width: auto;
+  margin: 0.2rem 0 0;
+  flex-shrink: 0;
+}
+
+.rule-list {
+  list-style: none;
+  margin: -0.3rem 0 1.2rem;
+  padding: 0;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+.rule-list li.is-met {
+  color: #15803d;
+}
+
+.consent {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.9rem 1rem 0.3rem;
+  margin: 0 0 1.2rem;
+}
+
+.consent legend {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  padding: 0 0.4rem;
+}
+
+.terms {
+  margin: 1.5rem 0 1.2rem;
+}
+
+.terms h2 {
+  font-size: 1rem;
+  margin: 0 0 0.6rem;
+}
+
+.terms-list {
+  margin: 0;
+  padding: 0 0 0 1.2rem;
+  max-height: 15rem;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.9rem 0.9rem 0.9rem 2rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: #374151;
+  background: #fafafa;
+}
+
+.terms-list li {
+  margin-bottom: 0.6rem;
+}
+
+.payment-declared {
+  margin: 0.75rem 0 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.3rem 0.85rem;
+  background: #fafafa;
+}

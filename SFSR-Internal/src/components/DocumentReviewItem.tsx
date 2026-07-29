@@ -1,10 +1,12 @@
 import {
   DOC_TYPE_LABELS,
   ID_TYPE_LABELS,
+  PAYMENT_CHANNEL_LABELS,
   type DocumentRecord,
   DocumentStatus,
   ValidationPanel,
   fetchStoredFile,
+  formatDate,
   fullNameOf,
   reviewDocument,
   useDocumentAnalysis,
@@ -157,6 +159,29 @@ export default function DocumentReviewItem({ document, registeredName }: Props) 
       </header>
 
       {error && <p className="field-error">{error}</p>}
+
+      {/* What the payer declared, shown beside the receipt so the reviewer
+          compares the two rather than trusting either on its own. */}
+      {document.payment && (
+        <dl className="spec-list payment-declared">
+          <div>
+            <dt>Amount paid</dt>
+            <dd>₱{document.payment.amount.toLocaleString('en-PH')}</dd>
+          </div>
+          <div>
+            <dt>Payment date</dt>
+            <dd>{formatDate(document.payment.paidOn)}</dd>
+          </div>
+          <div>
+            <dt>Reference no.</dt>
+            <dd>{document.payment.referenceNo}</dd>
+          </div>
+          <div>
+            <dt>Channel</dt>
+            <dd>{PAYMENT_CHANNEL_LABELS[document.payment.channel]}</dd>
+          </div>
+        </dl>
+      )}
 
       {analysis.running ? (
         <div className="ocr-status">
