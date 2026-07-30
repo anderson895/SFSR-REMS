@@ -1,4 +1,4 @@
-# SFSR-REMS — Setup
+# SFSR-REMS -- Setup
 
 St. Francis Square Realty Real Estate Management System.
 
@@ -8,9 +8,9 @@ St. Francis Square Realty Real Estate Management System.
 |---|---|---|---|---|
 | Web-Based Real Estate Portal | `SFSR-Portal/` | :5173 | **Deployed online** (Firebase Hosting) | Buyers / clients |
 | Internal Management System | `SFSR-Internal/` | :5174 | **Local / office LAN only** | Staff |
-| Shared code | `SFSR-Shared/` | — | not deployed on its own | both projects |
+| Shared code | `SFSR-Shared/` | -- | not deployed on its own | both projects |
 
-`SFSR-Portal` and `SFSR-Internal` are independent npm projects — separate
+`SFSR-Portal` and `SFSR-Internal` are independent npm projects -- separate
 `package.json`, separate `node_modules`, separate install, build, and deploy.
 Neither imports the other.
 
@@ -21,7 +21,7 @@ one place instead of drifting apart in two copies.
 **The database is deliberately NOT separated.** Both projects read the same
 `.env` at the repo root and therefore the same Firebase project (`sfsr-rems`).
 The study requires a centralized database so that a change made in one system
-appears immediately in the other — a reservation filed on the Portal shows up
+appears immediately in the other -- a reservation filed on the Portal shows up
 in the Internal system, and an approval there removes the unit from the Portal.
 
 ```
@@ -56,7 +56,7 @@ Requires Node 18+ (tested on Node 22).
 
 ## 2. Credentials
 
-Copy `.env.example` to `.env` and fill it in. The `.env` file is gitignored —
+Copy `.env.example` to `.env` and fill it in. The `.env` file is gitignored --
 never commit it.
 
 ```bash
@@ -82,7 +82,7 @@ It performs four steps:
 3. Seeds the demo property inventory, if `units` is empty
 4. Prints a count of every collection
 
-**Idempotent** — re-running reports what already exists and changes nothing, so
+**Idempotent** -- re-running reports what already exists and changes nothing, so
 it is safe after a failure partway through or on an already-configured project.
 It never deletes data.
 
@@ -95,7 +95,7 @@ npm run migrate:data -- <adminEmail> <adminPassword>
 ### Why this needs Google credentials
 
 `firestore.rules` deliberately prevents anyone from registering themselves as
-staff — self-registration is pinned to the `buyer` role, and only existing staff
+staff -- self-registration is pinned to the `buyer` role, and only existing staff
 may create staff accounts. Without that guard, any stranger on the internet
 could make themselves an administrator.
 
@@ -103,21 +103,21 @@ So the first admin cannot be created *through* the app, by design. The
 migration uses the Firebase Admin SDK, which bypasses the rules using real
 Google credentials. Pick either:
 
-**Option A — gcloud**
+**Option A -- gcloud**
 
 ```bash
 gcloud auth application-default login
 gcloud auth application-default set-quota-project sfsr-rems
 ```
 
-**Option B — service account key**
+**Option B -- service account key**
 
-Firebase Console → Project settings → Service accounts → *Generate new private
+Firebase Console -> Project settings -> Service accounts -> *Generate new private
 key*. Save it as `serviceAccountKey.json` in the repo root (already gitignored).
 The migration prefers this file if it is present.
 
 Every staff account after the first is created inside the app:
-**User management → Create staff account** — no credentials needed.
+**User management -> Create staff account** -- no credentials needed.
 
 ## 4. Optional: seed units without admin credentials
 
@@ -143,7 +143,7 @@ npm run build             # production build of both apps
 npm run check:algorithms  # Levenshtein + document-type checks, no browser needed
 ```
 
-Or work inside one project on its own — it does not need the root scripts:
+Or work inside one project on its own -- it does not need the root scripts:
 
 ```bash
 cd SFSR-Internal
@@ -157,7 +157,7 @@ The free Spark plan allows **50,000 Firestore reads per day**. That sounds
 generous and is not: Firestore bills one read per document *every time a
 listener attaches*, and Vite re-attaches every listener on every file save. A
 single day of editing this project consumed 52,000 reads against only 712
-writes — a 73:1 ratio — and locked the database for the rest of the day.
+writes -- a 73:1 ratio -- and locked the database for the rest of the day.
 
 **Develop against the local emulators.** They cost nothing, work offline, and
 enforce the same `firestore.rules`.
@@ -168,18 +168,18 @@ VITE_USE_EMULATOR=true
 ```
 
 ```bash
-npm run emulators      # terminal 1 — keeps data in .emulator-data/
+npm run emulators      # terminal 1 -- keeps data in .emulator-data/
 npm run dev:internal   # terminal 2
 ```
 
-Seed the emulator the same way as the real project — the scripts follow the
+Seed the emulator the same way as the real project -- the scripts follow the
 same flag, so they write to whichever target the apps are using:
 
 ```bash
 npm run migrate:data -- admin@example.com password123
 ```
 
-Emulator UI: http://127.0.0.1:4000 · requires Java (already installed if
+Emulator UI: http://127.0.0.1:4000 - requires Java (already installed if
 `java -version` works).
 
 Set `VITE_USE_EMULATOR=` (blank) to point back at the real project. The console
@@ -187,7 +187,7 @@ logs which target is active on startup, so there is no guessing.
 
 ### If you do hit the limit
 
-Quota resets at **midnight US Pacific time** (about 3–4 PM Manila). Nothing is
+Quota resets at **midnight US Pacific time** (about 3--4 PM Manila). Nothing is
 lost or broken; reads simply fail until then. Switch to the emulator and keep
 working.
 
@@ -203,11 +203,11 @@ working.
 
 ```bash
 npm run seed:staff                  # emulator, or whatever .env points at
-npm run seed:staff -- --production  # the live project
+npm run seed:staff -- --live  # the live project
 ```
 
 Creates one account per role, so role-based access control can be shown rather
-than described — sign in as each and watch the navigation and the permitted
+than described -- sign in as each and watch the navigation and the permitted
 actions change.
 
 | Role | Email | Password | Sees |
@@ -225,7 +225,7 @@ for a demo; change them before the project holds anything real.
 ## Deploying
 
 Only the Portal goes online. The Internal Management System is office-based and
-is never published to Hosting — `firebase.json` points Hosting at
+is never published to Hosting -- `firebase.json` points Hosting at
 `SFSR-Portal/dist` only.
 
 ```bash
@@ -240,13 +240,13 @@ interfaces).
 ## A note on the shared package
 
 `SFSR-Shared` is linked, not copied. Editing `SFSR-Shared/src/levenshtein.ts`
-changes both apps at once — that is the point, since the algorithm must behave
+changes both apps at once -- that is the point, since the algorithm must behave
 identically on both sides.
 
 Because npm installs a `file:` dependency as a symlink, both Vite configs set
 `resolve.dedupe` for `firebase`, `react`, `react-dom`, `tesseract.js`, and
 `pdfjs-dist`. Without it, Vite could load two separate copies of the Firebase
-SDK — one via the shared package, one via the app — and `getApps()` in one would
+SDK -- one via the shared package, one via the app -- and `getApps()` in one would
 not see the app created by the other, so a signed-in user would appear signed
 out to half the code. Do not remove that setting.
 
@@ -263,12 +263,12 @@ If you zip a project to hand it off, **include `SFSR-Shared` and the root
 | `admin` | Internal only | Everything, including user management |
 
 A buyer account is refused by the Internal system, and a staff account is
-refused by the Portal — both in the UI and in `firestore.rules`.
+refused by the Portal -- both in the UI and in `firestore.rules`.
 
 ## Every write requires an account
 
-There is no anonymous write path anywhere in the system. Browsing is public —
-`units` is readable by anyone, which the study requires — but creating a
+There is no anonymous write path anywhere in the system. Browsing is public --
+`units` is readable by anyone, which the study requires -- but creating a
 reservation, uploading a document, or booking a site visit all need a signed-in
 buyer.
 
@@ -295,21 +295,21 @@ Mapped against `Phase-1-50.pdf`.
 
 | Module | Where |
 |---|---|
-| Buyer registration · login/logout · profile | `SFSR-Portal/src/pages/{Register,Login,Profile}Page.tsx` |
-| Display · search/filter · unit details | `SFSR-Portal/src/pages/Units{,Detail}Page.tsx` |
-| Reserve a unit · On Hold · saved to database | `SFSR-Shared/src/reservations.ts` |
-| Upload requirements · proof of payment | `SFSR-Shared/src/ui/DocumentUploader.tsx` |
+| Buyer registration - login/logout - profile | `SFSR-Portal/src/pages/{Register,Login,Profile}Page.tsx` |
+| Display - search/filter - unit details | `SFSR-Portal/src/pages/Units{,Detail}Page.tsx` |
+| Reserve a unit - On Hold - saved to database | `SFSR-Shared/src/reservations.ts` |
+| Upload requirements - proof of payment | `SFSR-Shared/src/ui/DocumentUploader.tsx` |
 
 **Internal Management System**
 
 | Module | Where |
 |---|---|
-| Sales/Admin login · user roles | `SFSR-Internal/src/auth/RequireStaff.tsx`, `firestore.rules` |
-| View · create walk-in · update status | `SFSR-Internal/src/pages/{Reservations,WalkInReservation}Page.tsx` |
-| View/download documents · approve or reject | `SFSR-Internal/src/components/DocumentReviewItem.tsx` |
-| OCR reads files · displays extracted text | `SFSR-Shared/src/ocr.ts` |
-| Levenshtein comparison · similarity score | `SFSR-Shared/src/{levenshtein,validateDocument}.ts` |
-| Approve · On Hold → Reserved · leaves portal | `approveReservation()` + portal query filters on `available` |
+| Sales/Admin login - user roles | `SFSR-Internal/src/auth/RequireStaff.tsx`, `firestore.rules` |
+| View - create walk-in - update status | `SFSR-Internal/src/pages/{Reservations,WalkInReservation}Page.tsx` |
+| View/download documents - approve or reject | `SFSR-Internal/src/components/DocumentReviewItem.tsx` |
+| OCR reads files - displays extracted text | `SFSR-Shared/src/ocr.ts` |
+| Levenshtein comparison - similarity score | `SFSR-Shared/src/{levenshtein,validateDocument}.ts` |
+| Approve - On Hold -> Reserved - leaves portal | `approveReservation()` + portal query filters on `available` |
 
 ## Verification
 
@@ -320,20 +320,20 @@ npm run check:algorithms            # offline, no Firebase
 npm run verify -- <email> <pw>      # live, against the real project
 ```
 
-`check:algorithms` asserts the manuscript's worked example — OCR reading
+`check:algorithms` asserts the manuscript's worked example -- OCR reading
 `JUAN DELA CRVZ` for `JUAN DELA CRUZ` gives distance 1, ~92.9% similarity,
-verdict `match` — plus document-type detection and a negative case.
+verdict `match` -- plus document-type detection and a negative case.
 
 `verify` runs the whole reservation lifecycle against live Firestore, importing
 the **same** `createReservation` / `approveReservation` the apps call, through
 the ordinary client SDK so `firestore.rules` applies exactly as it does to a
 real user. It checks 14 things, including:
 
-- two simultaneous reservations on one unit → **exactly one wins**
+- two simultaneous reservations on one unit -> **exactly one wins**
 - a buyer cannot set their own `role` to `admin`
 - a buyer cannot seize a unit that is already on hold
 - a buyer cannot read another buyer's reservation, or approve their own
-- approval moves the unit `on_hold → reserved`, upgrades the buyer to a Client
+- approval moves the unit `on_hold -> reserved`, upgrades the buyer to a Client
   Account, and removes the unit from the portal listing
 
 It creates a throwaway buyer, rival, and reservation, then deletes them and

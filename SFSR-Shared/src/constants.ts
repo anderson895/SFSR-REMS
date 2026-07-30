@@ -234,6 +234,38 @@ export const PAYMENT_CHANNEL_LABELS: Record<PaymentChannel, string> = {
   [PaymentChannel.CASH]: 'Cash',
 };
 
+/**
+ * Query page sizes and upper bounds.
+ *
+ * Kept here, not beside the hooks that use them, because `scripts/measureReads.ts`
+ * reports the read cost of each screen and has to measure the same numbers the
+ * app actually uses. When they were duplicated, the page size dropped to 24 and
+ * the report kept confidently printing 60.
+ *
+ * Firestore bills one read per document every time a listener attaches, so each
+ * of these is a per-attach price.
+ */
+
+/** Units held in the catalogue's search listener. */
+export const CATALOGUE_PAGE_SIZE = 24;
+
+/**
+ * Units shown when a type is opened, before "Show more floors".
+ *
+ * A multiple of four so a page break lands on a floor boundary — a floor holds
+ * up to four units of one type. Six rows fit a screen without scrolling; sixteen
+ * was more than a buyer could take in.
+ */
+export const FLOOR_PAGE_SIZE = 24;
+
+/** Ceilings for collections that are small now and unbounded in principle. */
+export const MAX_PROJECTS = 50;
+export const MAX_UNIT_TYPES = 50;
+export const MAX_DOCUMENTS_PER_RESERVATION = 100;
+export const MAX_RESERVATIONS = 200;
+export const MAX_STAFF = 200;
+export const MAX_AUDIT_ENTRIES = 50;
+
 /** Upload constraints taken from the manuscript's Scope and Limitation. */
 export const MAX_UPLOAD_BYTES = 3 * 1024 * 1024; // 3 MB
 export const ACCEPTED_MIME_TYPES = [

@@ -1,5 +1,9 @@
 import {
+  CATALOGUE_PAGE_SIZE,
   COLLECTIONS,
+  FLOOR_PAGE_SIZE,
+  MAX_PROJECTS,
+  MAX_UNIT_TYPES,
   type Project,
   type Unit,
   UnitStatus,
@@ -22,13 +26,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 const BROWSABLE = [UnitStatus.AVAILABLE, UnitStatus.ON_HOLD];
 
 /**
- * How many units to hold open in a live listener at once.
- *
- * Firestore charges one read per document every time a listener attaches, so an
- * unbounded listener over the whole inventory costs its full size on every
- * mount — and during development, on every hot reload.
+ * Page sizes come from the shared constants so `npm run measure` reports the
+ * numbers the app actually uses. Duplicated, they drift: the page size dropped
+ * to 24 while the report went on printing 60.
  */
-const PAGE_SIZE = 48;
+const PAGE_SIZE = CATALOGUE_PAGE_SIZE;
 
 /* ------------------------------------------------------------------ catalogue
  *
@@ -48,7 +50,7 @@ export function useProjects() {
   useEffect(
     () =>
       onSnapshot(
-        collection(db, COLLECTIONS.PROJECTS),
+        query(collection(db, COLLECTIONS.PROJECTS), limitTo(MAX_PROJECTS)),
         (snap) => {
           setProjects(
             snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Project),
@@ -90,8 +92,8 @@ export function useTypeSummaries(projectName?: string) {
   useEffect(() => {
     const base = collection(db, COLLECTIONS.UNIT_TYPES);
     const q = projectName
-      ? query(base, where('projectName', '==', projectName))
-      : query(base);
+      ? query(base, where('projectName', '==', projectName), limitTo(MAX_UNIT_TYPES))
+      : query(base, limitTo(MAX_UNIT_TYPES));
 
     return onSnapshot(
       q,
@@ -217,7 +219,7 @@ export function useProjectSummaries() {
  * Scoped by type rather than taken from a capped catalogue-wide listener, so
  * the floor-by-floor view is complete even for the most expensive layouts.
  */
-export function useUnitsOfType(typeId?: string, pageSize = 60) {
+export function useUnitsOfType(typeId?: string, pageSize = FLOOR_PAGE_SIZE) {
   const [units, setUnits] = useState<Unit[]>([]);
   const [pageLimit, setPageLimit] = useState(pageSize);
   const [loading, setLoading] = useState(false);

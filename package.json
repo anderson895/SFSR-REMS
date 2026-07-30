@@ -32,6 +32,7 @@
     "inspect:units": "tsx --env-file=.env scripts/inspectUnits.ts",
     "inspect:shape": "tsx --env-file=.env scripts/inspectShape.ts",
     "measure": "tsx --env-file=.env scripts/measureReads.ts",
+    "inspect:state": "tsx scripts/inspectState.ts",
     "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes --project sfsr-rems",
     "deploy:portal": "npm run build:portal && firebase deploy --only hosting --project sfsr-rems"
   },

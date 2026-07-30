@@ -108,6 +108,20 @@ async function main() {
     const projectId = slug(projectName);
 
     if (!projects.has(projectId)) {
+      /**
+       * Only fields this script can genuinely fill are written.
+       *
+       * These are merged into whatever `repairCatalogue` already wrote, so a
+       * blank placeholder is not a harmless default — it silently erases real
+       * data. Writing `images: []` here once wiped the project's building render
+       * and left a grey box on the listings page.
+       *
+       * The old unit shape carried `[hero, floorPlan]`, so the first image is
+       * the project's render. If it is absent, the key is omitted entirely and
+       * the merge leaves the existing value alone.
+       */
+      const hero = u.images?.[0];
+
       projects.set(projectId, {
         name: projectName,
         location: u.location ?? '',
@@ -115,8 +129,7 @@ async function main() {
         // Amenities belong to the development, and every unit carried the same
         // list — take the longest one seen in case some records are partial.
         amenities: u.amenities ?? [],
-        images: [],
-        description: '',
+        ...(hero ? { images: [hero] } : {}),
       });
     } else {
       const existing = projects.get(projectId)!;
@@ -125,6 +138,8 @@ async function main() {
         existing.amenities = u.amenities;
       }
       if (!existing.location && u.location) existing.location = u.location;
+      // A later unit may carry the render when the first one did not.
+      if (!existing.images && u.images?.[0]) existing.images = [u.images[0]];
     }
 
     const typeName = u.type ?? 'Unspecified';

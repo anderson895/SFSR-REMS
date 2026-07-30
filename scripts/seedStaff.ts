@@ -1,8 +1,8 @@
-/**
+﻿/**
  * Creates the demo staff accounts for the Internal Management System.
  *
  *   npm run seed:staff                 the emulator, if VITE_USE_EMULATOR=true
- *   npm run seed:staff -- --production the live project
+ *   npm run seed:staff -- --live the live project
  *
  * One account per role, so the role-based access control can actually be
  * demonstrated rather than described: sign in as each and watch the navigation

@@ -13,7 +13,11 @@
  */
 
 import {
+  CATALOGUE_PAGE_SIZE,
   COLLECTIONS,
+  FLOOR_PAGE_SIZE,
+  MAX_AUDIT_ENTRIES,
+  MAX_RESERVATIONS,
   UnitStatus,
   auth,
   db,
@@ -44,6 +48,12 @@ interface Measurement {
 
 const results: Measurement[] = [];
 
+/** Records a measurement and hands it back, so totals reference it directly. */
+function record(m: Measurement): Measurement {
+  results.push(m);
+  return m;
+}
+
 /** An aggregation query bills 1 read per 1,000 documents matched. */
 const aggregationCost = (matched: number) => Math.max(1, Math.ceil(matched / 1000));
 
@@ -66,19 +76,20 @@ async function main() {
     typeCountCost += aggregationCost(snap.data().count);
   }
 
-  results.push({
+  const home = record({
     screen: 'Home page',
     reads: types.size + projects.size + typeCountCost,
     detail: `${types.size} types + ${projects.size} project + ${typeCountCost} count queries`,
   });
 
-  results.push({
-    screen: 'Units — browsing',
+  const browsing = record({
+    screen: 'Units - browsing',
     reads: types.size + typeCountCost,
     detail: `${types.size} type documents + ${typeCountCost} count queries`,
   });
 
   // ------------------------------------------------- open one unit type
+  let openType: Measurement | undefined;
   const firstType = types.docs[0];
   if (firstType) {
     const ofType = await getDocs(
@@ -87,17 +98,17 @@ async function main() {
         where('typeId', '==', firstType.id),
         where('status', 'in', BROWSABLE),
         orderBy('floor'),
-        limit(60),
+        limit(FLOOR_PAGE_SIZE),
       ),
     );
-    results.push({
-      screen: 'Units — open a type',
+    openType = record({
+      screen: 'Units - open a type',
       reads: ofType.size,
-      detail: `first page of ${firstType.data().type}, capped at 60`,
+      detail: `first page of ${firstType.data().type}, capped at ${FLOOR_PAGE_SIZE}`,
     });
   }
 
-  results.push({
+  const unitDetail = record({
     screen: 'Unit detail',
     reads: 3,
     detail: '1 unit + 1 project + 1 unit type',
@@ -109,13 +120,13 @@ async function main() {
       collection(db, COLLECTIONS.UNITS),
       where('status', 'in', BROWSABLE),
       orderBy('price'),
-      limit(48),
+      limit(CATALOGUE_PAGE_SIZE),
     ),
   );
-  results.push({
-    screen: 'Units — search (only if used)',
+  record({
+    screen: 'Units - search (only if used)',
     reads: search.size + 1,
-    detail: 'capped at 48, plus one total count',
+    detail: `capped at ${CATALOGUE_PAGE_SIZE}, plus one total count`,
   });
 
   // ------------------------------------------------------------- staff
@@ -123,22 +134,22 @@ async function main() {
     query(
       collection(db, COLLECTIONS.RESERVATIONS),
       orderBy('createdAt', 'desc'),
-      limit(200),
+      limit(MAX_RESERVATIONS),
     ),
   );
-  results.push({
-    screen: 'Staff — reservation queue',
+  record({
+    screen: 'Staff - reservation queue',
     reads: reservations.size,
-    detail: 'capped at 200',
+    detail: `capped at ${MAX_RESERVATIONS}`,
   });
 
   const audit = await getDocs(
-    query(collection(db, COLLECTIONS.AUDIT_LOGS), orderBy('at', 'desc'), limit(50)),
+    query(collection(db, COLLECTIONS.AUDIT_LOGS), orderBy('at', 'desc'), limit(MAX_AUDIT_ENTRIES)),
   );
-  results.push({
-    screen: 'Staff — audit trail',
+  record({
+    screen: 'Staff - audit trail',
     reads: audit.size,
-    detail: 'capped at 50, fetched on open and on Refresh only',
+    detail: `capped at ${MAX_AUDIT_ENTRIES}, fetched on open and on Refresh only`,
   });
 
   // ----------------------------------------------------------- report
@@ -151,12 +162,15 @@ async function main() {
     );
   }
 
-  // A visitor who lands, browses, opens a type, and views two units.
+  /**
+   * A visitor who lands, browses, opens a type, and views two units.
+   *
+   * Summed from the recorded measurements rather than looked up by their display
+   * strings. The lookup silently returned 0 the moment one label's dash changed
+   * from an em-dash to a hyphen, and an undercount here is worse than no count.
+   */
   const visitor =
-    (results.find((r) => r.screen === 'Home page')?.reads ?? 0) +
-    (results.find((r) => r.screen === 'Units — browsing')?.reads ?? 0) +
-    (results.find((r) => r.screen === 'Units — open a type')?.reads ?? 0) +
-    3 * 2;
+    home.reads + browsing.reads + (openType?.reads ?? 0) + unitDetail.reads * 2;
 
   console.log(
     `\nA thorough visitor (home, browse, open a type, view two units): ` +

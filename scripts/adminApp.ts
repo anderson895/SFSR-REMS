@@ -4,7 +4,7 @@
  * The Admin SDK bypasses `firestore.rules`, which is exactly what a migration
  * needs. Those rules deliberately forbid anyone from creating a staff account
  * (self-registration is pinned to `buyer`) and forbid non-staff from writing
- * units. That is not an oversight to work around in the app — it is what stops
+ * units. That is not an oversight to work around in the app -- it is what stops
  * a stranger from making themselves an administrator. The migration breaks the
  * deadlock with real Google credentials instead of by weakening the rules.
  *
@@ -25,7 +25,7 @@ process.loadEnvFile('.env');
 export const PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID ?? 'sfsr-rems';
 
 /**
- * When the apps are pointed at the emulators, the scripts must follow — a
+ * When the apps are pointed at the emulators, the scripts must follow -- a
  * migration that seeds the real project while the app reads the emulator looks
  * like the seed silently did nothing.
  *
@@ -33,14 +33,30 @@ export const PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID ?? 'sfsr-rems';
  * no credentials at all once they are set.
  */
 /**
- * Passing `--production` overrides VITE_USE_EMULATOR for a single command.
+ * Passing `--live` overrides VITE_USE_EMULATOR for a single command.
  *
  * Without it, a developer set up for local work has to edit .env to touch the
- * real project and remember to change it back — and forgetting either half is
- * silent. A repair aimed at production would quietly fix the emulator instead,
- * leaving the live site broken and the operator convinced it was fixed.
+ * real project and remember to change it back -- and forgetting either half is
+ * silent. A repair aimed at the live project would quietly fix the emulator
+ * instead, leaving the real site broken and the operator sure it was fixed.
+ *
+ * The flag is `--live` because npm consumes several plausible names as its own
+ * options before they ever reach a script. `--production` and `--dry-run` are
+ * both swallowed, which is why the migration's preview flag is `--plan`. Check
+ * any new flag against npm's own list first.
  */
-const FORCE_PRODUCTION = process.argv.includes('--production');
+const NPM_RESERVED = ['--production', '--dry-run'];
+
+const FORCE_PRODUCTION = process.argv.includes('--live');
+
+const reserved = NPM_RESERVED.find((flag) => process.argv.includes(flag));
+if (reserved) {
+  console.error(
+    `${reserved} never reaches this script: npm consumes it as its own option. ` +
+      'Use --live to target the real project, or --plan to preview a migration.',
+  );
+  process.exit(1);
+}
 
 export const USING_EMULATOR =
   !FORCE_PRODUCTION && process.env.VITE_USE_EMULATOR === 'true';
@@ -54,7 +70,7 @@ if (USING_EMULATOR) {
 function buildApp() {
   if (USING_EMULATOR) {
     console.log(
-      `  target: LOCAL EMULATOR (${process.env.FIRESTORE_EMULATOR_HOST}) — no quota used`,
+      `  target: LOCAL EMULATOR (${process.env.FIRESTORE_EMULATOR_HOST}) -- no quota used`,
     );
     return initializeApp({ projectId: PROJECT_ID });
   }
@@ -102,7 +118,7 @@ export function explainCredentialError(error: unknown): string {
       'Firestore refused the operation: the daily free-tier quota is used up.',
       '',
       'Nothing was written. The database is read-only until the quota resets at',
-      'midnight US Pacific — about 3-4 PM Manila time.',
+      'midnight US Pacific -- about 3-4 PM Manila time.',
       '',
       'Until then, work against the local emulator, which costs nothing:',
       '  set VITE_USE_EMULATOR=true in .env',
@@ -128,11 +144,11 @@ export function explainCredentialError(error: unknown): string {
     '',
     'Pick ONE of these, then run the migration again.',
     '',
-    'Option A — gcloud (no files to manage):',
+    'Option A -- gcloud (no files to manage):',
     '  gcloud auth application-default login',
     `  gcloud auth application-default set-quota-project ${PROJECT_ID}`,
     '',
-    'Option B — service account key:',
+    'Option B -- service account key:',
     '  Firebase Console -> Project settings -> Service accounts',
     '  -> Generate new private key',
     '  Save it as serviceAccountKey.json in the repo root (already gitignored).',

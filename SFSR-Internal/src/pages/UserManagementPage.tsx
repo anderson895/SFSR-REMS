@@ -8,7 +8,7 @@ import {
   type UserProfile,
   writeAuditLog,
 } from '@sfsr/shared';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, limit, onSnapshot, query, where } from 'firebase/firestore';
 import { type FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 
@@ -34,6 +34,7 @@ export default function UserManagementPage() {
     const q = query(
       collection(db, COLLECTIONS.USERS),
       where('role', 'in', [Role.SALES, Role.DOCUMENTATION, Role.ADMIN]),
+      limit(200),
     );
     return onSnapshot(q, (snap) => {
       setStaff(

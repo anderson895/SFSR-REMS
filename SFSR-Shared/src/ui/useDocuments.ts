@@ -1,4 +1,11 @@
-import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import {
+  collection,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  where,
+} from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { DocumentStatus, REQUIRED_DOC_TYPES } from '../constants';
 import { COLLECTIONS, db } from '../firebase';
@@ -38,10 +45,14 @@ export function useReservationDocuments(
     const constraints = [where('reservationId', '==', reservationId)];
     if (buyerUid) constraints.push(where('buyerUid', '==', buyerUid));
 
+    // Bounded even though a reservation carries only a handful of documents:
+    // a re-upload loop or a scripted test can grow this without anyone noticing,
+    // and the listener would bill the whole set on every attach.
     const q = query(
       collection(db, COLLECTIONS.DOCUMENTS),
       ...constraints,
       orderBy('uploadedAt'),
+      limit(100),
     );
 
     // Always pass an error callback. A listener that fails without one renders
