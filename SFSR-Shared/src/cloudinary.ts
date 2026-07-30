@@ -21,8 +21,14 @@ export interface UploadedFile {
 }
 
 /**
- * Validates a file against the manuscript's stated limits: PDF/JPG/JPEG/PNG,
- * maximum 3 MB. Returns an error message, or null when the file is acceptable.
+ * Validates a file against the specified limits: PDF/JPG/JPEG/PNG, and the
+ * size in `MAX_UPLOAD_BYTES`. Returns an error message, or null when the file
+ * is acceptable.
+ *
+ * The limit is read from the constant rather than written into the message.
+ * It was hard-coded as "3 MB" and went stale the moment the constant changed,
+ * which is the worst kind of error text: it tells the user to meet a limit
+ * that is not the one being enforced.
  */
 export function validateFile(file: File): string | null {
   if (!ACCEPTED_MIME_TYPES.includes(file.type as (typeof ACCEPTED_MIME_TYPES)[number])) {
@@ -30,7 +36,8 @@ export function validateFile(file: File): string | null {
   }
   if (file.size > MAX_UPLOAD_BYTES) {
     const mb = (file.size / 1024 / 1024).toFixed(2);
-    return `File is ${mb} MB. The maximum allowed size is 3 MB.`;
+    const limit = Math.round(MAX_UPLOAD_BYTES / 1024 / 1024);
+    return `File is ${mb} MB. The maximum allowed size is ${limit} MB.`;
   }
   return null;
 }

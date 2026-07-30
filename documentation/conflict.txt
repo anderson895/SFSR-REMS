@@ -4,11 +4,23 @@ SFSR-REMS — SPECIFICATION CONFLICTS AND CLARIFICATIONS
 
 Compiled 2026-07-29 while implementing the documentary requirements module.
 
-Every item below was verified against the source documents and against the
-code, and each carries a file:line reference so it can be checked rather than
-taken on trust. Nothing here has been "fixed" by guessing — where the sources
-disagree, the code follows the reading noted under RESOLUTION, and the
-disagreement is recorded here for the adviser or the company to settle.
+HOW TO READ THIS FILE
+---------------------
+The specification documents are the authority. The code is an implementation of
+them and carries no authority of its own, so a difference between the code and
+the documents is never a choice to be made — it is either work still to do, or
+a defect. Only the documents can conflict with each other, and only those
+conflicts need a decision.
+
+The file is therefore in four parts:
+
+  PART 1  Conflicts between the documents          NEEDS YOUR DECISION
+  PART 2  Documented, not yet built                no decision — work to do
+  PART 3  Documented, blocked by the platform      needs an exception
+  PART 4  Built without a document saying so       confirm or remove
+
+Every claim carries a page or file:line reference so it can be checked rather
+than taken on trust.
 
 
 --------------------------------------------------------------------------------
@@ -18,121 +30,116 @@ SOURCES
   [MS]   documentation/manuscript.pdf                       105 pages
   [SUM]  documentation/SUMMARY-OF-SYSTEM-PROJECT (1).pdf      5 pages
   [DB]   documentation/DATABASE.doc                  reservation form spec
-  [CODE] the implementation in this repository
 
-Where they disagree, [DB] is the most specific and the most recent (added
-2026-07-29) and is treated as authoritative for the reservation form. [MS] is
-authoritative for scope, algorithms, and module boundaries.
+[DB] is the most specific and the most recent, and governs the reservation
+form. [MS] governs scope, algorithms and module boundaries. [SUM] is a
+condensed narrative of [MS] and is treated as the weakest of the three where
+they differ.
+
+Reference/reference_UI.jpg is deliberately excluded. It is a visual mockup of
+the landing page, not a specification, and nothing in it settles a question of
+requirements.
+
+To re-read any of them:
+
+  node scripts/readPdf.mjs "documentation/manuscript.pdf" "search terms"
+  node scripts/readDoc.mjs "documentation/DATABASE.doc" "search terms"
+
+CAVEAT ON [DB]: it is a legacy binary .doc and the text extraction is lossy —
+visible gaps appear mid-sentence in Step 1 and Step 2. Anything below that
+depends on [DB] Steps 1-2 should be confirmed against the file opened in Word.
 
 
 ================================================================================
-PART 1 — CONFLICTS BETWEEN SOURCES
+PART 1 — CONFLICTS BETWEEN THE DOCUMENTS  (needs your decision)
 ================================================================================
 
 --------------------------------------------------------------------------------
-C1. Maximum upload size: 3 MB or 10 MB?
+C1. When does the unit go On Hold?
 --------------------------------------------------------------------------------
-[MS]   p.57 — "PDF, JPG, JPEG, or PNG formats with a maximum file size
-       specified by the company". No number given.
-[DB]   Steps 7 and 8 — "Maximum File Size: 10 MB", stated twice.
-[CODE] SFSR-Shared/src/constants.ts — MAX_UPLOAD_BYTES = 3 MB, with the
-       comment "Upload constraints taken from the manuscript's Scope and
-       Limitation."
-
-That comment is wrong. The manuscript states no figure, so the 3 MB was never
-sourced from it. [DB] is the only document that specifies a size.
-
-IMPACT   A buyer photographing an ID on a modern phone routinely produces a
-         4-8 MB JPEG. At 3 MB the file is refused before OCR ever runs, and
-         the buyer is told their document is too large with no practical way
-         to comply short of finding image-compression software.
-RESOLUTION  Not changed unilaterally. Raising an upload cap has cost and abuse
-         implications that are the company's call, and the Cloudinary free
-         tier has limits of its own. NEEDS A DECISION — see Q1.
-
-
---------------------------------------------------------------------------------
-C2. When does the unit go On Hold?
---------------------------------------------------------------------------------
-[DB]   Reservation Terms 1-2, transcribed verbatim into
-       SFSR-Shared/src/legal.ts:39-41 —
+[DB]   Reservation Terms 1-2:
          "The reservation application shall be processed only after the
           reservation fee has been verified by the Billing Department."
          "Once payment has been verified, the selected unit shall be placed
           under On Hold status while the reservation is being evaluated."
 [SUM]  p.2 — "After saving the reservation, the system automatically changes
-       the unit status to On Hold to prevent double selling." Immediately,
+       the unit status to On Hold to prevent double selling."  Immediately,
        with no mention of payment verification.
-[CODE] SFSR-Shared/src/reservations.ts:85 — the unit is set to ON_HOLD inside
-       the same transaction that creates the reservation, before any payment
-       verification exists.
 
-This is the sharpest conflict in the system, because the code shows the buyer
-a rule it does not follow: legal.ts:40 is displayed on the reserve page and
-promises that the hold follows payment verification.
+The documents describe two different systems.
 
-IMPACT   Two readings, two very different systems.
-         Immediate hold — protects against double-selling, which is the
-                          study's headline contribution; but a buyer who never
-                          pays can hold a unit indefinitely.
-         Hold after fee — matches the signed terms and the real business
-                          process; but leaves a window in which two buyers can
-                          both submit for the same unit, which is exactly what
-                          the study set out to eliminate.
-RESOLUTION  Immediate hold retained. The double-selling guard is the
-         manuscript's central claim, and [MS] p.21 describes real-time status
-         synchronisation "eliminating the possibility of double reservations
-         or double sales". Deferring the hold would remove the feature being
-         defended. NEEDS A DECISION — see Q2. If the immediate hold stands,
-         Term 2 must be reworded: a system that displays terms it violates is
-         worse than one with no terms at all.
+  Hold on submission        protects against double-selling, which [MS] p.21
+                            calls the elimination of "double reservations or
+                            double sales"; but a buyer who never pays can hold
+                            a unit indefinitely.
+
+  Hold after fee verified   matches the terms the buyer legally agrees to and
+                            the real business process; but leaves a window in
+                            which two buyers can both submit for the same unit
+                            — the exact problem the study set out to solve.
+
+This is the most consequential conflict in the specification. Whichever way it
+is settled, the losing wording has to change: the reservation terms are shown
+to the buyer verbatim, so the system must not promise a sequence it does not
+follow.
+
+QUESTION Q1.
 
 
 --------------------------------------------------------------------------------
-C3. On approval, does the unit become Reserved or Sold?
+C2. Is "BIR Form No. 1904 / TIN" required, or situational?
+--------------------------------------------------------------------------------
+[DB]   Step 8 lists it among the documents to be uploaded, and — unlike the
+       Marriage Certificate and the Special Power of Attorney — without the
+       qualifier "(if applicable)". That reads as required.
+[DB]   Step 1 (buyer information) appears to print a TIN field without the
+       asterisk that marks every required field on that step. That reads as
+       optional.
+
+[DB] contradicts itself. Note the caveat above: Step 1 could not be read
+cleanly from the binary file, so this should be confirmed in Word before it is
+settled.
+
+QUESTION Q2.
+
+
+--------------------------------------------------------------------------------
+C3. Is "Reservation Form" a document the buyer uploads?
+--------------------------------------------------------------------------------
+[SUM]  p.2 lists "Reservation Forms" among the uploads, in both the online and
+       the walk-in flow.
+[DB]   Step 8 lists the documents to be uploaded, and Reservation Form is not
+       among them.
+
+The two are reconcilable, and the distinction matters. In [DB] the reservation
+form IS the online application — Steps 1 to 10 are the form — so there is no
+separate file. In [SUM] the walk-in buyer fills in a paper form which the
+employee then scans, so it exists as a file only for walk-ins.
+
+If [SUM] is followed for online buyers, the company must publish a downloadable
+form. A requirement to upload a document the company never issues cannot be
+met by anyone.
+
+QUESTION Q3.
+
+
+--------------------------------------------------------------------------------
+C4. On approval, does the unit become Reserved or Sold?
 --------------------------------------------------------------------------------
 [MS]   p.21 — "Once the reservation has been reviewed and officially approved
        by authorized personnel, the property's status automatically changes to
-       Sold, permanently removing the unit."
+       Sold."
+[MS]   p.13 — places the sale much later: the Contract to Sell is prepared
+       after the first amortisation, and the transaction concludes with the
+       Deed of Absolute Sale.
 [SUM]  p.3 — "On Hold ↓ Reserved / Sold", offering both without distinguishing.
-[CODE] SFSR-Shared/src/reservations.ts:182 — sets UnitStatus.RESERVED.
-       UnitStatus.SOLD exists in constants.ts but is never assigned anywhere.
 
-IMPACT   Modest for the portal, since both statuses are excluded from the
-         public catalogue. It matters for reporting: a "units sold" figure
-         would read zero forever.
-RESOLUTION  RESERVED retained. An approved reservation is not a completed
-         sale — [MS] p.13 places the sale at the Contract to Sell and the Deed
-         of Absolute Sale, several stages later. Marking a unit Sold at
-         reservation approval would misstate the company's position. Recommend
-         SOLD be set when the Contract to Sell is executed, which is outside
-         Phase 1. NEEDS A DECISION — see Q3.
+[MS] disagrees with itself: p.21 marks the unit Sold at reservation approval,
+while p.13 places the sale several stages later. An approved reservation is
+not a completed sale, so calling it Sold would misstate the company's position
+in its own records.
 
-
---------------------------------------------------------------------------------
-C4. Is "Reservation Form" a document the buyer uploads?
---------------------------------------------------------------------------------
-[SUM]  p.2 lists "Reservation Forms" among the documents the buyer uploads, in
-       both the online and the walk-in flow.
-[DB]   Step 8 lists the documents to be uploaded, and Reservation Form is NOT
-       among them: BIR Form No. 1904 / TIN, Proof of Billing, Certificate of
-       Employment / Proof of Income, Marriage Certificate (if applicable),
-       Special Power of Attorney (if applicable), Other Supporting Documents.
-[CODE] constants.ts — RESERVATION_FORM is a DocType and is listed in
-       REQUIRED_DOC_TYPES.
-
-The two are reconcilable, and the distinction is meaningful. In [DB] the
-reservation form IS the online application (Steps 1-10), so there is no
-separate document to upload. In [SUM] the walk-in buyer fills in a paper form
-which the employee then scans — so it exists as a file only for walk-ins.
-
-IMPACT   As implemented, an online buyer is asked to upload a "Reservation
-         Form" that the company never gave them. There is no download anywhere
-         in the portal. The requirement cannot be satisfied.
-RESOLUTION  Kept as a DocType, because the walk-in flow genuinely needs one.
-         Whether it stays in REQUIRED_DOC_TYPES for online buyers NEEDS A
-         DECISION — see Q4. This is the most immediately visible defect in the
-         current build.
+QUESTION Q4.
 
 
 --------------------------------------------------------------------------------
@@ -142,207 +149,210 @@ C5. How many projects, and which unit types?
        Parkview Heights, Harbor View Residences, Greenfield Gardens.
        Unit Type dropdown names six: Studio, Studio Deluxe, One Bedroom,
        Two Bedroom, Three Bedroom, Penthouse.
-[REF]  Reference/reference_UI.jpg shows the same five projects in the carousel.
 [Verbal] the developer stated three projects in total.
-[CODE] scripts/unitData.ts — one project, The Legaspi Place.
-       constants.ts — UNIT_TYPES = Studio, 1BR, 2BR, 3BR (four).
-       The floor plan sheets in THE_LEGASPI_PLACE/ show exactly those four
-       types, and neither Studio Deluxe nor Penthouse.
+[Floor plans] THE_LEGASPI_PLACE/ contains four unit types — Studio, 1BR, 2BR,
+       3BR — with real areas, unit counts and floor ranges. No Studio Deluxe
+       and no Penthouse.
 
-IMPACT   No functional defect — the catalogue derives everything from the
-         seeded inventory, so it is correct for whatever exists. But three
-         sources give three different counts, and UNIT_TYPES drives the
-         catalogue's aggregation queries: a type present in the data but
-         missing from that array is invisible in the catalogue.
-RESOLUTION  The code follows the actual floor plan sheets, which are the only
-         source carrying real areas, unit counts and prices. NEEDS A DECISION
-         — see Q5 — before the remaining projects are seeded.
+[DB] and the developer disagree on the project count. And the six unit types in
+[DB] may be a generic dropdown rather than a statement about these buildings —
+the only floor plan sheets that exist show four.
+
+QUESTION Q5.
 
 
 --------------------------------------------------------------------------------
-C6. Birth Certificate
+C6. Birth Certificate  (benign)
 --------------------------------------------------------------------------------
-[MS]   p.26 and p.36 name Birth Certificate as a document category, and p.21
-       uses it as the worked example of Document Type Validation: "if the
-       buyer selects Birth Certificate but uploads a Driver's License".
+[MS]   p.26 and p.36 name it as a document category, and p.21 uses it as the
+       worked example of Document Type Validation.
 [DB]   Step 8 does not list it.
-[CODE] BIRTH_CERTIFICATE is a DocType with a keyword signature, and is not in
-       REQUIRED_DOC_TYPES.
 
-RESOLUTION  Retained as a situational category. Harmless, and it is the
-         manuscript's own illustration of the feature. No decision needed.
+Recorded for completeness. Keeping it as a situational category satisfies both
+documents, since [DB] does not forbid categories it omits. No decision needed.
 
 
 ================================================================================
-PART 2 — SPECIFIED BUT NOT IMPLEMENTED
+PART 2 — DOCUMENTED, NOT YET BUILT  (no decision — work to do)
 ================================================================================
 
-Present in the sources, absent from the code. Listed so that none of them is
-mistaken for an oversight.
+These are in the documents and absent from the code. None is a choice; they are
+listed so that none is mistaken for one, and so the remaining scope is visible.
 
-G1. RESERVATION FEE AMOUNT
-    [DB] Step 4 has a Reservation Fee field, and Term 1 makes processing
-    depend on its verification. The system never states an amount and has no
-    field for one. A buyer is asked to upload proof of a payment whose amount,
-    payee and channel the portal never tells them. Together with C4 this is
-    the other half of the same problem: requirements the buyer cannot possibly
-    satisfy from information the portal provides.
+W1. RESERVATION FEE AMOUNT AND PAYMENT DETAILS
+    [DB] Step 4 has a Reservation Fee field and Term 1 makes processing depend
+    on its verification, but the portal never states an amount, a payee or a
+    channel. The buyer is asked to upload proof of a payment nobody has told
+    them how to make. Together with C3 this is the same failure twice:
+    requirements that cannot be satisfied from what the portal provides.
 
-G2. PURCHASE PRICE BREAKDOWN
-    [DB] Steps 2-3 specify Price per Square Metre, Unit Purchase Price,
-    Parking Purchase Price and Total Purchase Price, several of them marked
-    "system generated". Unit in types.ts carries a single flat `price`.
+W2. PURCHASE PRICE BREAKDOWN
+    [DB] Steps 2-3: Price per Square Metre, Unit Purchase Price, Parking
+    Purchase Price, Total Purchase Price, several marked "system generated".
+    A unit currently carries a single flat price.
 
-G3. PAYMENT TERMS AND SUMMARY
-    [DB] Steps 4-5 specify down payment percentage (10-50%), promotional
-    discount, down payment installment term (Spot Cash through 36 months),
-    financing option (Bank / PAG-IBIG / Cash), and a computed payment summary.
-    None of it is modelled.
+W3. PAYMENT TERMS AND SUMMARY
+    [DB] Steps 4-5: down payment percentage (10-50%), promotional discount,
+    down payment installment term (Spot Cash through 36 months), financing
+    option (Bank / PAG-IBIG / Cash), and a computed payment summary.
 
-G4. PARKING SPACE
-    [DB] Step 2 specifies optional parking with slot number, type (Regular /
-    Premium / Tandem), area and price. Not modelled.
+W4. PARKING SPACE
+    [DB] Step 2: optional parking with slot number, type (Regular / Premium /
+    Tandem), area and price.
 
-G5. THIRTY-DAY DOCUMENT DEADLINE
-    [DB] Term 3 and [SUM] p.4 require documents within 30 calendar days of the
-    reservation date, after which the employee cancels subject to management
-    approval. The wording is displayed (legal.ts:41) but nothing computes or
-    stores a due date, and nothing surfaces an overdue reservation to staff.
-    Displayed, not enforced.
+W5. THIRTY-DAY DOCUMENT DEADLINE
+    [DB] Term 3 and [SUM] p.4: documents within 30 calendar days of the
+    reservation date, after which the employee cancels. The wording is shown
+    to the buyer but nothing computes or stores a due date, and no overdue
+    reservation is surfaced to staff. Displayed, not enforced.
 
-G6. RESERVATION REFERENCE FORMAT
-    [DB] System Confirmation shows "RES-2026-000001". The code uses the
-    Firestore auto-ID, displayed as its first eight characters (for example
-    "uyvGY91E"). A sequential human-readable reference needs a counter
-    document and a transaction to increment it safely.
+W6. RESERVATION REFERENCE FORMAT
+    [DB] System Confirmation shows "RES-2026-000001". The code shows the first
+    eight characters of the Firestore auto-ID. A sequential reference needs a
+    counter document and a transaction to increment it safely.
 
-G7. BILLING, PAYMENT MONITORING, LOAN MONITORING
-    [MS] modules 6, 7 and 8 (p.32) and [SUM] p.4 specify Statement of Account,
+W7. MANAGEMENT APPROVAL FOR CANCELLATION
+    [SUM] p.4 — cancellation is "manually cancelled by the employee, subject to
+    management approval". Staff can cancel; there is no second approval step,
+    and no MANAGEMENT role exists in the role model.
+
+W8. BILLING, PAYMENT MONITORING, LOAN MONITORING
+    [MS] modules 6, 7 and 8 (p.32) and [SUM] p.4: Statement of Account,
     balances, payment history, penalties, association dues, and Bank/PAG-IBIG
-    loan tracking. None implemented. Believed out of Phase 1 scope — see Q6.
-
-G8. NOTIFICATIONS
-    [MS] p.15 — "receive transaction notifications". [DB] — "You will receive
-    a notification once your reservation has been reviewed." No email or SMS
-    is sent anywhere; the portal shows status in-app only.
-
-G9. CAPTCHA
-    [DB] Registration includes "I am not a robot". Not implemented. Related:
-    SETUP.md records that Firestore rules cannot express rate limits and that
-    App Check with reCAPTCHA is the standard remedy.
+    loan tracking. Substantial modules. Whether they belong to Phase 1 is
+    QUESTION Q6 — that part is a decision; building them is not.
 
 
 ================================================================================
-PART 3 — IMPLEMENTED BEYOND THE SPECIFICATION
+PART 3 — DOCUMENTED, BLOCKED BY THE PLATFORM  (needs an exception)
 ================================================================================
 
-Added because the specification's own goals require them. Recorded so that the
-defence is not surprised by a feature no document mentions.
+These are the only places where the code cannot simply follow the documents.
+Each needs either a paid plan or an accepted exception.
 
-E1. ID SUBTYPE VALIDATION (Stage 1b)
-    [MS] p.21 requires the system to detect "Birth Certificate selected,
-    Driver's License uploaded". It says nothing about one ID versus another —
-    but DocType.VALID_ID treats every government ID as a single category, so a
-    buyer selecting Driver's License could upload a PhilHealth card and pass
-    Stage 1. IdType, ID_PATTERNS and Stage 1b close that gap. [DB] Step 8's
-    "Choose ID type" control implies the same requirement.
+B1. EMAIL AND SMS NOTIFICATIONS
+    [MS] p.15 — "receive transaction notifications".
+    [DB] — "You will receive a notification once your reservation has been
+    reviewed."
+    Firebase cannot send mail from client code. This needs Cloud Functions,
+    which require the Blaze (paid) plan, or a third-party mail service with
+    its own key and cost. The same constraint already forced the workaround in
+    authService.ts, where staff accounts are created through a secondary app
+    instead of the Admin SDK.
+    Currently the portal shows status in-app only, and nothing is sent.
+    NEEDS: a paid plan, or acceptance that notifications are in-app only.
 
-E2. FRONT AND BACK OF THE ID
-    No source asks for both sides. Philippine IDs carry material data on the
-    reverse — restrictions on a licence, address on a PhilSys card — and staff
-    cannot verify what they cannot see. Both sides are captured; the front is
-    validated, and the back is checked only for being a genuinely different
-    image, because the reverse carries no issuing header to match against.
-
-E3. THE ID IS VALIDATED BEFORE THE UNIT IS HELD
-    No source specifies the ordering. OCR runs in the browser, so the ID can
-    be read and matched with no upload at all; doing it first means a buyer
-    with the wrong document never takes a unit off the market, and a failed
-    attempt leaves no orphaned file in storage. Consistent with [DB] Step 8,
-    which collects the ID during the application.
-
-E4. BUYER-INITIATED CANCELLATION
-    [SUM] p.4 describes cancellation as an employee action subject to
-    management approval. Buyers can now withdraw their own reservation while
-    it is still pending or under review, which releases the unit. Rationale:
-    [DB] Term 5 names "voluntary withdrawal of the reservation application" as
-    a legitimate cause, and a unit held by a buyer who has moved on is a unit
-    the company cannot sell. Staff cancellation exists alongside it. The
-    management-approval gate in [SUM] is NOT implemented — see Q7.
-
-E5. STAGE 2 IS ADVISORY, NOT BLOCKING
-    [MS] p.21 says a type mismatch is rejected outright, and the code does
-    exactly that. It does not say what happens when the name does not match.
-    That is treated as advisory: surfaced to the buyer and to staff, but it
-    does not block the reservation, because OCR misreads names routinely — the
-    manuscript's own example is CRVZ for CRUZ — and blocking would refuse
-    legitimate buyers over photo quality. Consistent with [MS] p.57, which
-    insists OCR "should not be viewed as a complete replacement for human
-    document verification". See Q8.
-
-E6. SITE VISIT REQUESTS REQUIRE AN ACCOUNT
-    [MS] p.15 states that prospective buyers "who intend to request a tripping
-    schedule or reserve a unit are required to register", so this follows the
-    manuscript. Recorded because an earlier build allowed anonymous requests,
-    which made trippingRequests the one collection a stranger could write to.
+B2. CAPTCHA / ABUSE PROTECTION
+    [DB] Registration includes "I am not a robot".
+    Firestore security rules cannot express a rate limit — they constrain what
+    may be written, never how often. The standard remedy is App Check with
+    reCAPTCHA, which is free to configure but must be enabled on the Firebase
+    project and wired into both apps.
+    Every write now requires an authenticated account, which removes the
+    anonymous flooding path (see SETUP.md), but an authenticated user is still
+    unthrottled.
+    NEEDS: App Check enabled on the project, or acceptance of the risk for a
+    defended prototype.
 
 
 ================================================================================
-PART 4 — CLARIFICATIONS NEEDED
+PART 4 — BUILT WITHOUT A DOCUMENT SAYING SO  (confirm or remove)
 ================================================================================
 
-Q1  (C1) Maximum upload size — 3 MB as built, or 10 MB as [DB] specifies?
-    10 MB is friendlier to phone photos and is the figure the buyer is shown
-    in [DB]. Raising it also raises OCR time and storage cost.
+Behaviour no document specifies. Each was added because a documented goal
+required it, but none of them is authorised by the specification, so each is
+listed for confirmation. If any is unwanted, say so and it comes out.
 
-Q2  (C2) Does the unit go On Hold on submission, or only after the Billing
-    Department verifies the reservation fee? If on submission, Reservation
-    Term 2 must be reworded — the portal currently displays a promise the
-    system does not keep.
+X1. ID SUBTYPE VALIDATION (Stage 1b)
+    [MS] p.21 requires detecting "Birth Certificate selected, Driver's License
+    uploaded". It says nothing about one ID versus another. But a single
+    Valid ID category treats every government ID alike, so a buyer selecting
+    Driver's License could upload a PhilHealth card and pass. [DB] Step 8's
+    "Choose ID type" control implies the finer check, without describing it.
 
-Q3  (C3) Should approval set the unit to Reserved or to Sold? If Sold is
-    wanted at approval, the later sale stages in [MS] p.13 need reconciling.
+X2. FRONT AND BACK OF THE ID
+    No document asks for both sides. Philippine IDs carry material data on the
+    reverse — restrictions on a licence, address on a PhilSys card — which
+    staff cannot verify unseen. The front is validated; the back is only
+    checked for being a genuinely different image, because the reverse has no
+    issuing header to match against.
 
-Q4  (C4) Must an ONLINE buyer upload a Reservation Form? If yes, the company
-    must supply a downloadable form — there is nothing to download today and
-    the requirement cannot be met. If no, it should be dropped from
-    REQUIRED_DOC_TYPES and kept for walk-ins only.
+X3. THE ID IS VALIDATED BEFORE THE UNIT IS HELD
+    No document specifies the ordering. OCR runs in the browser, so the ID can
+    be read and matched with no upload at all. Checking first means a buyer
+    with the wrong document never takes a unit off the market and no orphaned
+    file is left in storage. Consistent with [DB] Step 8, which collects the
+    ID during the application.
+    NOTE: this interacts with C1. If the hold moves after payment
+    verification, this ordering changes with it.
 
-Q5  (C5) Three projects or five? [DB] and the reference design both name five;
-    the developer said three. And are Studio Deluxe and Penthouse real unit
-    types, or artefacts of a generic dropdown? The Legaspi Place sheets show
-    neither.
+X4. BUYER-INITIATED CANCELLATION
+    [SUM] p.4 describes cancellation as an employee action. Buyers can now
+    withdraw their own reservation while it is pending or under review, which
+    releases the unit. [DB] Term 5 names "voluntary withdrawal of the
+    reservation application" as a legitimate cause, and a unit held by a buyer
+    who has moved on is a unit the company cannot sell. Staff cancellation
+    exists alongside it.
 
-Q6  (G7) Are Billing, Payment Monitoring and Loan Monitoring in Phase 1, or
-    deferred? They are substantial modules, and the answer changes the
-    remaining schedule considerably.
-
-Q7  (E4) Should staff cancellation require management approval, as [SUM] p.4
-    states? If so, that is a second approval step and a role that does not
-    exist — no MANAGEMENT role is defined anywhere.
-
-Q8  (E5) Confirm that a Stage 2 name mismatch should warn rather than block.
-    The current behaviour lets a reservation proceed with a flagged document
-    for staff to judge, which matches the manuscript's stance on human
-    verification but is not stated explicitly anywhere.
-
-Q9  (G1) What is the reservation fee, and how is it paid? Without this the
-    Proof of Reservation Payment requirement cannot be met from information
-    the portal provides.
-
-Q10 (G5) Should the 30-day deadline be enforced by the system — a stored due
-    date and an overdue queue for staff — or remain a term the company applies
-    manually?
+X5. STAGE 2 IS ADVISORY, NOT BLOCKING
+    [MS] p.21 says a type mismatch is rejected outright, and it is. No document
+    says what happens when the NAME does not match. It is surfaced to the buyer
+    and to staff but does not block, because OCR misreads names routinely —
+    the manuscript's own example is CRVZ for CRUZ — and blocking would refuse
+    legitimate buyers over photo quality. Consistent with [MS] p.57: OCR
+    "should not be viewed as a complete replacement for human document
+    verification".
+    QUESTION Q7 — this one is worth confirming explicitly.
 
 
 ================================================================================
-NOTE ON ONE FACTUAL ERROR IN THE CODE
+QUESTIONS
 ================================================================================
 
-SFSR-Shared/src/constants.ts attributes MAX_UPLOAD_BYTES to "the manuscript's
-Scope and Limitation". The manuscript specifies no size. Whatever is decided
-in Q1, that comment should cite [DB] or the company rather than the manuscript
-— a comment that misattributes its source is worse than no comment, because it
-stops the next reader from checking.
+Q1  (C1) Does the unit go On Hold on submission, or only after the Billing
+    Department verifies the reservation fee? Whichever is chosen, the other
+    document's wording must be corrected — the reservation terms are shown to
+    the buyer verbatim.
+
+Q2  (C2) Is BIR Form 1904 / TIN a required document or a situational one?
+    [DB] says both. Please confirm against Step 1 in Word.
+
+Q3  (C3) Must an ONLINE buyer upload a Reservation Form? If yes, the company
+    needs to publish a downloadable form — there is nothing to download and
+    the requirement cannot currently be met.
+
+Q4  (C4) Should approval set the unit to Reserved or to Sold? [MS] p.21 says
+    Sold; [MS] p.13 places the sale several stages later.
+
+Q5  (C5) Three projects or five? And are Studio Deluxe and Penthouse real unit
+    types for these buildings, or a generic dropdown? The Legaspi Place sheets
+    show neither.
+
+Q6  (W8) Are Billing, Payment Monitoring and Loan Monitoring in Phase 1, or
+    deferred? The answer changes the remaining schedule considerably.
+
+Q7  (X5) Confirm that a Stage 2 name mismatch should warn rather than block.
+
+Q8  (B1) Is a paid Firebase plan available for email notifications, or are
+    in-app notifications accepted for this phase?
+
+Q9  (B2) Should App Check be enabled, or is the current authenticated-only
+    write model accepted for a defended prototype?
+
+
+================================================================================
+RESOLVED — no longer a conflict
+================================================================================
+
+R1. MAXIMUM UPLOAD SIZE  (resolved 2026-07-29)
+    [MS] p.57 states only "a maximum file size specified by the company" — no
+    figure. [DB] Steps 7 and 8 say 10 MB, twice. [DB] is the company doing the
+    specifying, so the documents never actually disagreed.
+    The code had 3 MB, with a comment attributing it to the manuscript's Scope
+    and Limitation. The manuscript contains no such figure; the attribution was
+    simply wrong. The practical cost was real — a phone photo of an ID is
+    routinely 4-8 MB, so the system refused documents the specification
+    promises to accept, before OCR ever ran.
+    Changed to 10 MB in SFSR-Shared/src/constants.ts to match [DB].
 
 ================================================================================

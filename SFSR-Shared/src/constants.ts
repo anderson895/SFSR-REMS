@@ -314,19 +314,19 @@ export const MAX_STAFF = 200;
 export const MAX_AUDIT_ENTRIES = 50;
 
 /**
- * The accepted formats come from the manuscript, which lists PDF, JPG, JPEG
- * and PNG but states only "a maximum file size specified by the company" —
- * no figure.
+ * Formats from the manuscript; size from `DATABASE.doc` Steps 7 and 8.
  *
- * The 3 MB is therefore not from the manuscript, whatever an earlier comment
- * here claimed. `DATABASE.doc` is the only source that names a size, and it
- * says 10 MB in both Step 7 and Step 8. The two disagree and the difference
- * is not cosmetic: a phone photo of an ID is routinely 4-8 MB, so 3 MB
- * refuses documents the specification promises to accept.
+ * The manuscript lists PDF, JPG, JPEG and PNG but names no size — only "a
+ * maximum file size specified by the company". `DATABASE.doc` is the company
+ * specifying it, and says 10 MB twice. So the two do not disagree, and there
+ * is nothing here to decide.
  *
- * Left at 3 MB pending a decision — see Q1 in documentation/conflict.txt.
+ * This was 3 MB, with a comment attributing that to the manuscript's Scope and
+ * Limitation. The manuscript contains no such figure. The practical cost was
+ * real: a phone photo of an ID is routinely 4-8 MB, so the system refused
+ * documents the specification promises to accept, before OCR ever ran.
  */
-export const MAX_UPLOAD_BYTES = 3 * 1024 * 1024; // 3 MB
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
 export const ACCEPTED_MIME_TYPES = [
   'application/pdf',
   'image/jpeg',
