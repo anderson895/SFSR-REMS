@@ -70,10 +70,26 @@ export const DOC_PATTERNS: DocPattern[] = [
   },
   {
     docType: DocType.INCOME_DOCUMENT,
+    /**
+     * The BIR form numbers are spelled out rather than matched as a bare
+     * "BIR FORM".
+     *
+     * That generic needle used to sit here, and it made this category swallow
+     * every BIR form there is — including Form 1904, which registers a taxpayer
+     * and certifies no income whatsoever. A 1904 was therefore classified as
+     * proof of income, which is the opposite of what it proves.
+     *
+     * 2316 certifies compensation paid; 1700 and 1701 are income tax returns.
+     * Those are income documents. 1904 is not, and now lives in its own
+     * category below.
+     */
     primary: [
       'CERTIFICATE OF EMPLOYMENT',
       'INCOME TAX RETURN',
-      'BIR FORM',
+      'BIR FORM NO 2316',
+      'BIR FORM 2316',
+      'BIR FORM NO 1700',
+      'BIR FORM NO 1701',
       'PAYSLIP',
       'PAY SLIP',
       'CERTIFICATE OF COMPENSATION PAYMENT',
@@ -87,6 +103,38 @@ export const DOC_PATTERNS: DocPattern[] = [
       'WITHHOLDING TAX',
       'EMPLOYER',
       'POSITION',
+    ],
+  },
+  {
+    docType: DocType.TIN_DOCUMENT,
+    /**
+     * BIR Form 1904 -- "Application for Registration for One-Time Taxpayer and
+     * Person Registering under E.O. 98".
+     *
+     * Note that "TIN" is never used as a needle on its own. `containsFuzzy`
+     * slides a window the length of the phrase, so a three-letter needle
+     * matches inside PRINTING, CERTIFICATE, and most of an English page. The
+     * long form of the phrase is what discriminates.
+     *
+     * Form 1901 (self-employed registration) scores here too, because
+     * "BIR FORM NO 1904" and "BIR FORM NO 1901" differ by two characters and the
+     * fuzzy threshold is 85%. That is the right outcome: 1901 is also a
+     * registration form, not an income document.
+     */
+    primary: [
+      'BIR FORM NO 1904',
+      'BIR FORM 1904',
+      'TAXPAYER IDENTIFICATION NUMBER',
+      'APPLICATION FOR REGISTRATION',
+      'BUREAU OF INTERNAL REVENUE',
+    ],
+    secondary: [
+      'REVENUE DISTRICT OFFICE',
+      'RDO CODE',
+      'ONE TIME TAXPAYER',
+      'TAXPAYER TYPE',
+      'DEPARTMENT OF FINANCE',
+      'REGISTERED ADDRESS',
     ],
   },
   {
@@ -170,7 +218,26 @@ export const DOC_PATTERNS: DocPattern[] = [
       'TRANSACTION ID',
     ],
   },
+  // DocType.OTHER_SUPPORTING has no entry here, and cannot have one: a catch-all
+  // holds documents nobody enumerated, so there is no phrase that appears on
+  // "one of them". Its absence is what makes it absent from scoreDocumentType's
+  // results, which is what stops the system ever suggesting "this looks more
+  // like an Other Supporting Document" -- a suggestion that would mean nothing.
+  // See `isUnclassifiable` in constants.ts and the Stage 1 branch in
+  // validateDocument.ts.
 ];
+
+/**
+ * Every category that Stage 1 can actually check.
+ *
+ * Derived from `DOC_PATTERNS` rather than typed out, so a new `DocType` added
+ * without a signature shows up here as missing instead of silently scoring zero
+ * against itself and being rejected on upload. `npm run check:algorithms`
+ * asserts that the only gap is the intended one.
+ */
+export const CLASSIFIABLE_DOC_TYPES: DocType[] = DOC_PATTERNS.map(
+  (p) => p.docType,
+);
 
 /**
  * Keyword signatures for individual government IDs.

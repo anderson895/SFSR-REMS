@@ -190,7 +190,13 @@ export default function ReservePage() {
 
       // Stage 1 or 1b failed — wrong document, or the wrong ID. Refuse before
       // the unit is touched.
-      if (!validation.typeMatch || validation.idTypeMatch === false) {
+      //
+      // `=== false`, not `!typeMatch`: null means Stage 1 did not apply, and
+      // treating that as a failure would block the upload. This path only ever
+      // handles a Valid ID, which is always classifiable, but the two readings
+      // must not be allowed to drift apart in the one place that refuses a
+      // reservation.
+      if (validation.typeMatch === false || validation.idTypeMatch === false) {
         setError(validation.message);
         setBusy(false);
         return;

@@ -232,9 +232,23 @@ export interface OcrResult {
 
 /** Outcome of the two-stage validation described in the manuscript. */
 export interface ValidationResult {
-  /** Stage 1 — does the file look like the document type the user chose? */
-  typeMatch: boolean;
+  /**
+   * Stage 1 — does the file look like the document type the user chose?
+   *
+   * **Null means the check did not apply**, not that it passed. The only
+   * category that produces null is Other Supporting Document, which has no
+   * keyword signature to check against. Read this with `=== false`, never with
+   * `!typeMatch`: the latter treats "not checked" as "failed".
+   */
+  typeMatch: boolean | null;
   typeScore: number;
+  /**
+   * A better-scoring category than the one chosen, when there is one.
+   *
+   * On an Other Supporting Document this is the *only* type signal available,
+   * and it is reported precisely so the catch-all cannot be used to slip a
+   * recognisable document past Stage 1.
+   */
   detectedType: DocType | null;
   /**
    * Stage 1b — for a Valid ID, is it the *specific* card the buyer selected?

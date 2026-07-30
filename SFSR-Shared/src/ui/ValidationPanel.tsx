@@ -35,12 +35,27 @@ export function ValidationPanel({ document }: { document: DocumentRecord }) {
       <div className="analysis-grid">
         <div className="metric">
           <span className="metric-label">Stage 1 — Document type</span>
+          {/* Three states, not two. Null means the category has no expected
+              format, so the check did not run -- rendering that as "Does not
+              match" would accuse the buyer of something the system never
+              tested. */}
           <span className="metric-value">
-            {validation.typeMatch ? 'Matches' : 'Does not match'}
+            {validation.typeMatch == null
+              ? 'Not checked'
+              : validation.typeMatch
+                ? 'Matches'
+                : 'Does not match'}
           </span>
           <span className="metric-sub">
-            {DOC_TYPE_LABELS[document.docType]} &middot; confidence{' '}
-            {(validation.typeScore * 100).toFixed(0)}%
+            {DOC_TYPE_LABELS[document.docType]}
+            {validation.typeMatch == null ? (
+              <> &middot; no expected format for this category</>
+            ) : (
+              <>
+                {' '}
+                &middot; confidence {(validation.typeScore * 100).toFixed(0)}%
+              </>
+            )}
             {validation.detectedType && (
               <> &middot; looks like {DOC_TYPE_LABELS[validation.detectedType]}</>
             )}

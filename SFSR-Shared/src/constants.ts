@@ -104,18 +104,47 @@ export type AccountType = (typeof AccountType)[keyof typeof AccountType];
  */
 export const UNIT_TYPES = ['Studio', '1BR', '2BR', '3BR'] as const;
 
-/** Documentary requirement categories the buyer picks before uploading. */
+/**
+ * Documentary requirement categories the buyer picks before uploading.
+ *
+ * Order matters: the uploader renders `Object.values(DocType)` directly, so this
+ * is the order of the dropdown. `OTHER_SUPPORTING` is deliberately last — it is
+ * the fallback, and a fallback offered early gets picked early.
+ *
+ * `TIN_DOCUMENT` is separate from `INCOME_DOCUMENT` because `DATABASE.doc`
+ * Step 8 lists "BIR Form No. 1904 / TIN" as its own requirement, distinct from
+ * "Certificate of Employment / Proof of Income". They are genuinely different
+ * documents: BIR Form 1904 registers a taxpayer and states no income at all,
+ * while BIR Form 2316 certifies compensation. Collapsing them meant a 1904 was
+ * classified as proof of income, which is the opposite of what it proves.
+ */
 export const DocType = {
   VALID_ID: 'valid_id',
   PROOF_OF_BILLING: 'proof_of_billing',
   INCOME_DOCUMENT: 'income_document',
+  TIN_DOCUMENT: 'tin_document',
   RESERVATION_FORM: 'reservation_form',
   BIRTH_CERTIFICATE: 'birth_certificate',
   MARRIAGE_CERTIFICATE: 'marriage_certificate',
   SPECIAL_POWER_OF_ATTORNEY: 'special_power_of_attorney',
   PROOF_OF_PAYMENT: 'proof_of_payment',
+  OTHER_SUPPORTING: 'other_supporting',
 } as const;
 export type DocType = (typeof DocType)[keyof typeof DocType];
+
+/**
+ * Categories with no keyword signature, so Stage 1 cannot check them.
+ *
+ * Only `OTHER_SUPPORTING` qualifies, and by definition: the whole point of a
+ * catch-all is that its contents are not known in advance, so there is nothing
+ * to match against. `validateDocument` reports Stage 1 as *not applicable* for
+ * these rather than as passed — a distinction that matters, because "we did not
+ * check" and "we checked and it was fine" must never render the same way.
+ */
+export const UNCLASSIFIABLE_DOC_TYPES: DocType[] = [DocType.OTHER_SUPPORTING];
+
+export const isUnclassifiable = (docType: DocType): boolean =>
+  UNCLASSIFIABLE_DOC_TYPES.includes(docType);
 
 /**
  * Specific government IDs the system can recognise.
@@ -185,12 +214,14 @@ export const isAcceptedIdType = (value: string | undefined): boolean =>
 export const DOC_TYPE_LABELS: Record<DocType, string> = {
   [DocType.VALID_ID]: 'Valid Government-Issued ID',
   [DocType.PROOF_OF_BILLING]: 'Proof of Billing',
-  [DocType.INCOME_DOCUMENT]: 'Income Document',
+  [DocType.INCOME_DOCUMENT]: 'Certificate of Employment / Proof of Income',
+  [DocType.TIN_DOCUMENT]: 'BIR Form No. 1904 / TIN',
   [DocType.RESERVATION_FORM]: 'Reservation Form',
   [DocType.BIRTH_CERTIFICATE]: 'Birth Certificate',
   [DocType.MARRIAGE_CERTIFICATE]: 'Marriage Certificate',
   [DocType.SPECIAL_POWER_OF_ATTORNEY]: 'Special Power of Attorney',
   [DocType.PROOF_OF_PAYMENT]: 'Proof of Reservation Payment',
+  [DocType.OTHER_SUPPORTING]: 'Other Supporting Document',
 };
 
 /**
@@ -198,6 +229,22 @@ export const DOC_TYPE_LABELS: Record<DocType, string> = {
  * document types remain uploadable but are situational (a Special Power of
  * Attorney only applies when someone signs on the buyer's behalf, a Marriage
  * Certificate only for married buyers).
+ *
+ * `TIN_DOCUMENT` is deliberately NOT here, and the decision is genuinely
+ * arguable: `DATABASE.doc` Step 8 lists "BIR Form No. 1904 / TIN" without the
+ * "(if applicable)" that qualifies the Marriage Certificate and the Special
+ * Power of Attorney, which reads as required — but Step 1 of the same document
+ * prints "TIN: ___________" with no asterisk, and every required field there
+ * carries one. The document contradicts itself.
+ *
+ * Left situational because making it required immediately blocks approval for
+ * every reservation already in the database, and a checklist that grows a new
+ * mandatory row retroactively looks like a bug to the staff using it. Adding
+ * `DocType.TIN_DOCUMENT` to this array is the only change needed to reverse it.
+ *
+ * `OTHER_SUPPORTING` must never be listed here. It has no signature, so
+ * "an approved Other Supporting Document exists" is a requirement that any file
+ * at all can satisfy.
  */
 export const REQUIRED_DOC_TYPES: DocType[] = [
   DocType.VALID_ID,
@@ -266,7 +313,19 @@ export const MAX_RESERVATIONS = 200;
 export const MAX_STAFF = 200;
 export const MAX_AUDIT_ENTRIES = 50;
 
-/** Upload constraints taken from the manuscript's Scope and Limitation. */
+/**
+ * The accepted formats come from the manuscript, which lists PDF, JPG, JPEG
+ * and PNG but states only "a maximum file size specified by the company" —
+ * no figure.
+ *
+ * The 3 MB is therefore not from the manuscript, whatever an earlier comment
+ * here claimed. `DATABASE.doc` is the only source that names a size, and it
+ * says 10 MB in both Step 7 and Step 8. The two disagree and the difference
+ * is not cosmetic: a phone photo of an ID is routinely 4-8 MB, so 3 MB
+ * refuses documents the specification promises to accept.
+ *
+ * Left at 3 MB pending a decision — see Q1 in documentation/conflict.txt.
+ */
 export const MAX_UPLOAD_BYTES = 3 * 1024 * 1024; // 3 MB
 export const ACCEPTED_MIME_TYPES = [
   'application/pdf',

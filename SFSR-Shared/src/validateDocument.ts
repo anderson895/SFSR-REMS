@@ -23,6 +23,7 @@ import {
   SIMILARITY_REVIEW,
   Verdict,
   isAcceptedIdType,
+  isUnclassifiable,
 } from './constants';
 import { scoreDocumentType, scoreIdType } from './docPatterns';
 import {
@@ -72,19 +73,41 @@ export function validateDocument({
   const best = scores[0];
 
   const typeScore = selectedScore?.score ?? 0;
-  const typeMatch = typeScore >= TYPE_ACCEPT_THRESHOLD;
+
+  /**
+   * Stage 1 does not apply to a catch-all.
+   *
+   * "Other Supporting Document" has no signature, so `selectedScore` is
+   * undefined and `typeScore` is 0 — which the gate below would read as a
+   * failure and reject every such upload outright. Null says *not checked*, and
+   * the branch further down keeps the name check running while refusing to let
+   * the verdict reach Match on a document nobody classified.
+   */
+  const typeMatch = isUnclassifiable(selectedType)
+    ? null
+    : typeScore >= TYPE_ACCEPT_THRESHOLD;
 
   // Only report a "detected" type when something else scored clearly better;
   // otherwise the suggestion is noise and would confuse the reviewer.
+  //
+  // On a catch-all there is nothing to be "better" than, so any confident match
+  // is worth surfacing: it is how a reviewer sees that a buyer filed a driver's
+  // licence under Other rather than under Valid ID, where Stage 1b would have
+  // checked it.
   const detectedType =
-    best && best.score >= TYPE_ACCEPT_THRESHOLD && best.score > typeScore
+    best &&
+    best.score >= TYPE_ACCEPT_THRESHOLD &&
+    (typeMatch === null || best.score > typeScore)
       ? best.docType
       : null;
 
   // --- Stage 1 gate -------------------------------------------------------
   // If the document is not of the expected type, stop here. Comparing names on
   // the wrong document would produce a meaningless similarity score.
-  if (!typeMatch) {
+  //
+  // `=== false` rather than `!typeMatch`, so "not checked" does not fall in
+  // here alongside "checked and wrong".
+  if (typeMatch === false) {
     const suggestion = detectedType
       ? ` It looks more like a ${DOC_TYPE_LABELS[detectedType]}.`
       : '';
@@ -140,28 +163,60 @@ export function validateDocument({
     ? tokenAlignedComparison(registeredName, extractedName)
     : bestWindowSimilarity(registeredName, ocr.rawText);
 
+  const percent = (comparison.similarity * 100).toFixed(1);
+
+  /**
+   * An unclassified document can never be auto-validated.
+   *
+   * With Stage 1 skipped, a Match verdict would rest on the name alone — and a
+   * name appears on almost every document a buyer owns. Capping at Needs Review
+   * is what stops "Other Supporting Document" from becoming the way to get any
+   * file marked Validated without passing a type check. A genuine Mismatch is
+   * still reported as a mismatch; only the passing grade is withheld.
+   */
+  const capped =
+    typeMatch === null && comparison.verdict === Verdict.MATCH
+      ? Verdict.REVIEW
+      : comparison.verdict;
+
   let message: string;
-  if (comparison.verdict === Verdict.MATCH) {
+  if (typeMatch === null) {
+    const looksLike = detectedType
+      ? ` It reads as a ${DOC_TYPE_LABELS[detectedType]} — if that is what it ` +
+        `is, please re-upload it under that category so it can be checked ` +
+        `properly.`
+      : '';
+    message =
+      comparison.verdict === Verdict.MISMATCH
+        ? `The name on this document does not match the registered buyer ` +
+          `(${percent}% similar), and its type could not be checked because ` +
+          `"Other Supporting Document" has no expected format.${looksLike}`
+        : `The name matches the registered buyer (${percent}% similar), but the ` +
+          `document type was not checked — "Other Supporting Document" has no ` +
+          `expected format, so this needs a person to confirm what it is.` +
+          looksLike;
+  } else if (comparison.verdict === Verdict.MATCH) {
     message =
       `Name matches the registered buyer ` +
-      `(${(comparison.similarity * 100).toFixed(1)}% similar, ` +
-      `${comparison.distance} character difference).`;
+      `(${percent}% similar, ${comparison.distance} character difference).`;
   } else if (comparison.verdict === Verdict.REVIEW) {
     message =
       `Name is close but not conclusive ` +
-      `(${(comparison.similarity * 100).toFixed(1)}% similar, ` +
-      `${comparison.distance} character difference). Manual review required.`;
+      `(${percent}% similar, ${comparison.distance} character difference). ` +
+      `Manual review required.`;
   } else {
     message =
       `The name on this document does not match the registered buyer ` +
-      `(${(comparison.similarity * 100).toFixed(1)}% similar). ` +
-      `Please verify manually.`;
+      `(${percent}% similar). Please verify manually.`;
   }
 
   return {
-    typeMatch: true,
+    typeMatch,
     typeScore,
-    detectedType: null,
+    // Carried through on a catch-all, discarded otherwise: past this point a
+    // classifiable document has matched its own category, so any runner-up is
+    // noise.
+    detectedType: typeMatch === null ? detectedType : null,
     idTypeMatch: idCheck ? true : null,
     idTypeScore: idCheck?.idTypeScore,
     detectedIdType: idCheck?.detectedIdType ?? null,
@@ -170,7 +225,7 @@ export function validateDocument({
     nameSimilarity: Number(comparison.similarity.toFixed(4)),
     comparedAgainst: comparison.normalizedA,
     matchedText: comparison.normalizedB,
-    verdict: comparison.verdict,
+    verdict: capped,
     message,
   };
 }
