@@ -343,37 +343,59 @@ export function useUnit(unitId: string | undefined) {
   const [project, setProject] = useState<Project | null>(null);
   const [unitType, setUnitType] = useState<UnitType | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
+  /**
+   * Every listener reports its failures.
+   *
+   * A single-document listener without an error callback is the most misleading
+   * of the lot: a rules rejection leaves `unit` as null, and the page then says
+   * "Unit not found" about a unit that exists perfectly well.
+   */
   useEffect(() => {
     if (!unitId) {
       setLoading(false);
       return;
     }
-    return onSnapshot(doc(db, COLLECTIONS.UNITS, unitId), (snap) => {
-      setUnit(snap.exists() ? ({ id: snap.id, ...snap.data() } as Unit) : null);
-      setLoading(false);
-    });
+    return onSnapshot(
+      doc(db, COLLECTIONS.UNITS, unitId),
+      (snap) => {
+        setUnit(snap.exists() ? ({ id: snap.id, ...snap.data() } as Unit) : null);
+        setError('');
+        setLoading(false);
+      },
+      (err) => {
+        setError(`${err.code}: ${err.message}`);
+        setLoading(false);
+      },
+    );
   }, [unitId]);
 
   useEffect(() => {
     if (!unit?.projectId) return;
-    return onSnapshot(doc(db, COLLECTIONS.PROJECTS, unit.projectId), (snap) =>
-      setProject(
-        snap.exists() ? ({ id: snap.id, ...snap.data() } as Project) : null,
-      ),
+    return onSnapshot(
+      doc(db, COLLECTIONS.PROJECTS, unit.projectId),
+      (snap) =>
+        setProject(
+          snap.exists() ? ({ id: snap.id, ...snap.data() } as Project) : null,
+        ),
+      (err) => setError(`${err.code}: ${err.message}`),
     );
   }, [unit?.projectId]);
 
   useEffect(() => {
     if (!unit?.typeId) return;
-    return onSnapshot(doc(db, COLLECTIONS.UNIT_TYPES, unit.typeId), (snap) =>
-      setUnitType(
-        snap.exists() ? ({ id: snap.id, ...snap.data() } as UnitType) : null,
-      ),
+    return onSnapshot(
+      doc(db, COLLECTIONS.UNIT_TYPES, unit.typeId),
+      (snap) =>
+        setUnitType(
+          snap.exists() ? ({ id: snap.id, ...snap.data() } as UnitType) : null,
+        ),
+      (err) => setError(`${err.code}: ${err.message}`),
     );
   }, [unit?.typeId]);
 
-  return { unit, project, unitType, loading };
+  return { unit, project, unitType, loading, error };
 }
 
 /* --------------------------------------------------------------- formatting */

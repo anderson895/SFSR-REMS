@@ -14,10 +14,26 @@ const STATUS_COPY: Record<string, string> = {
 };
 
 export default function MyReservationsPage() {
-  const { reservations, loading } = useMyReservations();
+  const { reservations, loading, error } = useMyReservations();
   const actions = useActionItems();
 
   if (loading) return <p className="loading">Loading your reservations…</p>;
+
+  // Told apart deliberately. "No reservations yet" is reassuring and wrong when
+  // the list merely failed to load, and a buyer who believes their reservation
+  // vanished will reserve a second unit or call the office.
+  if (error) {
+    return (
+      <div className="notice">
+        <h2>We could not load your reservations</h2>
+        <p className="field-error">{error}</p>
+        <p>
+          Nothing has been lost — please refresh in a moment. If it keeps
+          happening, contact the sales office.
+        </p>
+      </div>
+    );
+  }
 
   if (reservations.length === 0) {
     return (

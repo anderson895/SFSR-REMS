@@ -41,6 +41,18 @@ export default function ReservationDetailPage() {
   const isAdmin = profile?.role === Role.ADMIN;
   const { prompt, dialog } = usePromptDialog();
 
+  /**
+   * A failed listener must not masquerade as a missing reservation.
+   *
+   * Without the error callback, a rules rejection or a dropped connection leaves
+   * `reservation` null and this page renders "Reservation not found" about a
+   * reservation that exists -- sending staff to look for a data problem that is
+   * really a permissions or network one. `loadError` is kept separate from
+   * `error` because `error` reports failed *actions* and is only rendered after
+   * the not-found branch has already returned.
+   */
+  const [loadError, setLoadError] = useState('');
+
   useEffect(() => {
     if (!reservationId) return;
     return onSnapshot(
@@ -51,6 +63,11 @@ export default function ReservationDetailPage() {
             ? ({ id: snap.id, ...snap.data() } as Reservation)
             : null,
         );
+        setLoadError('');
+        setLoading(false);
+      },
+      (err) => {
+        setLoadError(`${err.code}: ${err.message}`);
         setLoading(false);
       },
     );
@@ -58,8 +75,11 @@ export default function ReservationDetailPage() {
 
   useEffect(() => {
     if (!reservation?.unitId) return;
-    return onSnapshot(doc(db, COLLECTIONS.UNITS, reservation.unitId), (snap) =>
-      setUnit(snap.exists() ? ({ id: snap.id, ...snap.data() } as Unit) : null),
+    return onSnapshot(
+      doc(db, COLLECTIONS.UNITS, reservation.unitId),
+      (snap) =>
+        setUnit(snap.exists() ? ({ id: snap.id, ...snap.data() } as Unit) : null),
+      (err) => setLoadError(`${err.code}: ${err.message}`),
     );
   }, [reservation?.unitId]);
 
@@ -68,7 +88,8 @@ export default function ReservationDetailPage() {
   if (!reservation) {
     return (
       <div className="notice">
-        <h2>Reservation not found</h2>
+        <h2>{loadError ? 'Could not load this reservation' : 'Reservation not found'}</h2>
+        {loadError && <p className="field-error">{loadError}</p>}
         <p>
           <Link to="/reservations">Back to reservations</Link>
         </p>
@@ -243,6 +264,11 @@ export default function ReservationDetailPage() {
         </div>
 
         {error && <p className="field-error">{error}</p>}
+        {loadError && (
+          <p className="field-error">
+            Live updates stopped — {loadError}. What you see below may be stale.
+          </p>
+        )}
 
         <div className="two-col">
           <div>

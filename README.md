@@ -130,11 +130,20 @@ Every claim here is backed by a command anyone can re-run.
 | Check | Command | Result |
 |---|---|---|
 | Levenshtein and document-type detection | `npm run check:algorithms` | 14 checks pass, including the manuscript's `JUAN DELA CRVZ` example: distance 1, 92.9%, verdict `match` |
+| Real Philippine ID names, right person vs wrong person | `npm run check:ids` | all pass; correct buyer 91.7%, different buyer 52.3% |
+| Security rules resist a second buyer | `npm run check:rules` | all pass across three suites; a buyer cannot release another buyer's hold |
 | Full reservation lifecycle against live Firestore | `npm run verify -- <email> <pw>` | 14 checks pass, including two simultaneous reservations on one unit where exactly one wins |
-| Read cost per screen | `npm run measure -- <email> <pw>` | Home 9, Browse 8, Open a type 60, Unit detail 3 |
+| Read cost per screen | `npm run measure -- <email> <pw>` | Home 9, Browse 8, Open a type 24, Unit detail 3 |
 | What the database actually holds | `npm run inspect:state` | catalogue health plus whether OCR really ran |
 | Types compile across all four projects | `npm run typecheck` | clean |
 | Both apps build | `npm run build` | clean |
+
+Every `onSnapshot` listener in both apps now has an error callback, and every
+screen tells a failed listener apart from an empty result. This is not cosmetic:
+without it a rules rejection renders as "Reservation not found", "No
+reservations yet", or an empty unit dropdown -- each of which is a confident
+false statement that sends someone to fix the wrong thing. One such empty
+dropdown already cost real debugging time on this project.
 
 ### OCR in a real browser: proven
 

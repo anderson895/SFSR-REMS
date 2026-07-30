@@ -26,6 +26,7 @@ export default function ReservationDetailPage() {
     ?.uploadFailed;
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -44,6 +45,11 @@ export default function ReservationDetailPage() {
   );
   const progress = requirementProgress(documents);
 
+  // Same reasoning as the documents listener above, applied to the reservation
+  // itself: a failed listener leaves this null, and the page then tells a buyer
+  // their reservation does not exist. That is the single most alarming thing
+  // this screen can say, and it must not be said on the strength of an error
+  // nobody looked at.
   useEffect(() => {
     if (!reservationId) return;
     return onSnapshot(
@@ -54,6 +60,11 @@ export default function ReservationDetailPage() {
             ? ({ id: snap.id, ...snap.data() } as Reservation)
             : null,
         );
+        setLoadError('');
+        setLoading(false);
+      },
+      (err) => {
+        setLoadError(`${err.code}: ${err.message}`);
         setLoading(false);
       },
     );
@@ -64,7 +75,17 @@ export default function ReservationDetailPage() {
   if (!reservation) {
     return (
       <div className="notice">
-        <h2>Reservation not found</h2>
+        <h2>
+          {loadError
+            ? 'We could not load this reservation'
+            : 'Reservation not found'}
+        </h2>
+        {loadError && (
+          <p className="field-error">
+            {loadError}. Your reservation has not been affected — please try
+            again in a moment.
+          </p>
+        )}
         <p>
           <Link to="/reservations">Back to my reservations</Link>
         </p>

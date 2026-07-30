@@ -7,7 +7,7 @@ export default function UnitDetailPage() {
   const { unitId } = useParams();
   // Amenities, images, and the floor plan live on the project and the type now,
   // so the page reads all three rather than copies held on every unit.
-  const { unit, project, unitType, loading } = useUnit(unitId);
+  const { unit, project, unitType, loading, error } = useUnit(unitId);
   const { user } = useAuth();
 
   if (loading) return <p className="loading">Loading unit…</p>;
@@ -15,7 +15,10 @@ export default function UnitDetailPage() {
   if (!unit) {
     return (
       <div className="notice">
-        <h2>Unit not found</h2>
+        {/* "Unit not found" and "we could not reach the database" are different
+            facts, and only one of them is the visitor's problem to act on. */}
+        <h2>{error ? 'We could not load this unit' : 'Unit not found'}</h2>
+        {error && <p className="field-error">{error}</p>}
         <p>
           <Link to="/units">Back to available units</Link>
         </p>

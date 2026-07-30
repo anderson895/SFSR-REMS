@@ -95,26 +95,55 @@ async function main() {
     ATTACKER.password,
   );
 
-  // Find a unit that is currently on hold, and who holds it.
+  /**
+   * The attack target must be a hold the attacker does not own.
+   *
+   * Taking the first `on_hold` unit found is not good enough. Releasing one's
+   * own hold is legitimate and the rules allow it, so when the arbitrary pick
+   * happened to be the attacker's own reservation the successful write was
+   * reported as "a buyer can steal another buyer's unit" — a false breach that
+   * sent a real review chasing a rules hole that was not there.
+   *
+   * The attacker can read their own reservations, so their ids are collected
+   * first and any unit they hold is excluded.
+   */
+  const ownReservations = await getDocs(
+    query(
+      collection(attacker.db, 'reservations'),
+      where('buyerUid', '==', attacker.uid),
+    ),
+  );
+  const attackerHolds = new Set(ownReservations.docs.map((d) => d.id));
+
   const held = await getDocs(
     query(
       collection(owner.db, 'units'),
       where('status', '==', 'on_hold'),
-      limit(1),
+      limit(20),
     ),
   );
 
-  if (held.empty) {
+  const unitDoc = held.docs.find(
+    (d) => !attackerHolds.has(String(d.data().heldBy)),
+  );
+
+  if (!unitDoc) {
     console.log(
-      '  SKIP  no unit is currently on hold.\n' +
-        '        Reserve a unit in the portal first, then re-run.\n',
+      held.empty
+        ? '  SKIP  no unit is currently on hold.\n' +
+            '        Reserve a unit in the portal first, then re-run.\n'
+        : '  SKIP  every unit on hold belongs to the attacker account, so there\n' +
+            '        is nothing for it to steal. Reserve a unit as a different\n' +
+            '        buyer, then re-run.\n',
     );
     process.exit(0);
   }
 
-  const unitDoc = held.docs[0];
   const unit = unitDoc.data();
-  console.log(`  unit ${unit.unitNo} is on hold by reservation ${unit.heldBy}\n`);
+  console.log(
+    `  unit ${unit.unitNo} is on hold by reservation ${unit.heldBy}, ` +
+      'which the attacker does not own\n',
+  );
 
   // The holding reservation may be unreadable for two very different reasons:
   // it belongs to someone else (rules deny the read), or it no longer exists.

@@ -45,7 +45,7 @@ export default function ReservePage() {
   const { unitId } = useParams();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const { unit, unitType, loading } = useUnit(unitId);
+  const { unit, unitType, loading, error: unitError } = useUnit(unitId);
 
   const [buyer, setBuyer] = useState({
     firstName: '',
@@ -104,7 +104,12 @@ export default function ReservePage() {
   if (!unit) {
     return (
       <div className="notice">
-        <h2>Unit not found</h2>
+        <h2>{unitError ? 'We could not load this unit' : 'Unit not found'}</h2>
+        {unitError && (
+          <p className="field-error">
+            {unitError}. Nothing has been reserved — please try again.
+          </p>
+        )}
         <p>
           <Link to="/units">Back to available units</Link>
         </p>

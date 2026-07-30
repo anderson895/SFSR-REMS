@@ -129,6 +129,28 @@ async function main() {
     detail: `capped at ${CATALOGUE_PAGE_SIZE}, plus one total count`,
   });
 
+  // ------------------------------------------------- staff walk-in form
+  //
+  // Previously a single dropdown of every available unit: 317 reads to fill one
+  // control. Now it narrows by type, then floor.
+  if (firstType) {
+    const t = firstType.data();
+    const onFloor = await getDocs(
+      query(
+        collection(db, COLLECTIONS.UNITS),
+        where('typeId', '==', firstType.id),
+        where('status', '==', UnitStatus.AVAILABLE),
+        where('floor', '==', t.lowestFloor ?? 2),
+        limit(20),
+      ),
+    );
+    record({
+      screen: 'Staff - walk-in unit picker',
+      reads: types.size + onFloor.size,
+      detail: `${types.size} types + ${onFloor.size} units on one floor`,
+    });
+  }
+
   // ------------------------------------------------------------- staff
   const reservations = await getDocs(
     query(

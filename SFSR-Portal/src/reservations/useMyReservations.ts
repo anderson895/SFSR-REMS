@@ -22,6 +22,7 @@ export function useMyReservations() {
   const { user } = useAuth();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!user) {
@@ -37,15 +38,25 @@ export function useMyReservations() {
       limit(50),
     );
 
-    return onSnapshot(q, (snap) => {
-      setReservations(
-        snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Reservation),
-      );
-      setLoading(false);
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        setReservations(
+          snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Reservation),
+        );
+        setError('');
+        setLoading(false);
+      },
+      // Reported, not swallowed: an empty list here reads as "you have no
+      // reservations", which is alarming and wrong if the listener simply failed.
+      (err) => {
+        setError(`${err.code}: ${err.message}`);
+        setLoading(false);
+      },
+    );
   }, [user]);
 
-  return { reservations, loading };
+  return { reservations, loading, error };
 }
 
 /**

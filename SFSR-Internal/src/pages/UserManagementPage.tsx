@@ -1,5 +1,6 @@
 import {
   COLLECTIONS,
+  MAX_STAFF,
   Role,
   authErrorMessage,
   createStaffAccount,
@@ -29,18 +30,27 @@ export default function UserManagementPage() {
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const [listError, setListError] = useState('');
 
   useEffect(() => {
     const q = query(
       collection(db, COLLECTIONS.USERS),
       where('role', 'in', [Role.SALES, Role.DOCUMENTATION, Role.ADMIN]),
-      limit(200),
+      limit(MAX_STAFF),
     );
-    return onSnapshot(q, (snap) => {
-      setStaff(
-        snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as UserProfile),
-      );
-    });
+    // An empty staff table is a claim, and a wrong one is dangerous here: it
+    // reads as "there are no other administrators", which is the premise
+    // someone would act on before changing roles or removing access.
+    return onSnapshot(
+      q,
+      (snap) => {
+        setStaff(
+          snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as UserProfile),
+        );
+        setListError('');
+      },
+      (err) => setListError(`${err.code}: ${err.message}`),
+    );
   }, []);
 
   async function handleSubmit(event: FormEvent) {
@@ -159,6 +169,12 @@ export default function UserManagementPage() {
 
       <section className="panel">
         <h2>Employee accounts ({staff.length})</h2>
+        {listError && (
+          <p className="field-error">
+            Could not load the employee list — {listError}. The table below is
+            not the full picture.
+          </p>
+        )}
         <table className="data-table">
           <thead>
             <tr>
@@ -173,7 +189,9 @@ export default function UserManagementPage() {
             {staff.length === 0 ? (
               <tr>
                 <td colSpan={5} className="empty">
-                  No employee accounts yet.
+                  {listError
+                    ? 'The list could not be loaded — see the message above.'
+                    : 'No employee accounts yet.'}
                 </td>
               </tr>
             ) : (
